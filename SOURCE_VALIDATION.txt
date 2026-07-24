@@ -1,0 +1,43 @@
+RUNNING_TASK SOURCE VALIDATION
+==============================
+Version: 0.3.0-alpha.3
+Validation date: July 24, 2026
+
+RESULT
+------
+PASS - all source-level verification available in the Linux build environment.
+
+COMMAND
+-------
+npm run verify
+
+VERIFIED STEPS
+--------------
+1. TypeScript compilation: PASS.
+2. Self-contained preview generation: PASS.
+3. JavaScript syntax validation: PASS.
+4. Static product and configuration checks: PASS.
+5. SQLite schema smoke test: PASS.
+6. Domain rules for next action, due date, BIC, Calendar, progress, Done, and Archive: PASS.
+7. React render smoke checks for every primary view and overlay: PASS.
+8. No-admin packaging, GitHub workflow, release assets, and version consistency: PASS.
+
+ADDITIONAL STATIC VALIDATION
+----------------------------
+- GitHub Actions YAML parsed successfully.
+- Production and preview HTML contain no remote script or stylesheet references.
+- No GitHub access-token pattern appears in the publishing helper.
+- The publishing helper contains no force-push command.
+- Generated preview and compiled frontend report version 0.3.0-alpha.3.
+
+NOT EXECUTED IN THIS ENVIRONMENT
+--------------------------------
+- Native Windows Rust compilation.
+- NSIS installer generation.
+- Portable Windows executable launch.
+- Clean standard-user Windows installation.
+- Windows launch-at-sign-in acceptance test.
+- Windows backup/restore and uninstall acceptance run.
+- Company endpoint-policy or code-signing validation.
+
+Those checks are delegated to the Windows GitHub Actions workflow and the manual Windows acceptance checklist. The source should not be treated as a production Windows release until those tests pass.
