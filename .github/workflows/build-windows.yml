@@ -1,0 +1,119 @@
+name: Build Running_Task for Windows
+
+"on":
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out bootstrap workspace
+        uses: actions/checkout@v4
+
+      - name: Reconstruct and verify complete source
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "_source" -Force | Out-Null
+          $encoded = (Get-ChildItem "source-parts/part-*.b64" |
+            Sort-Object Name |
+            ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
+          [IO.File]::WriteAllBytes(
+            "Running_Task-source.tar.xz",
+            [Convert]::FromBase64String($encoded)
+          )
+          $expected = ((Get-Content "source-parts/SHA256SUMS.txt" -Raw).Trim() -split "\s+")[0]
+          $actual = (Get-FileHash "Running_Task-source.tar.xz" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected.ToLowerInvariant()) {
+            throw "Source archive checksum mismatch. Expected $expected but found $actual."
+          }
+          tar -xJf "Running_Task-source.tar.xz" -C "_source"
+          if (-not (Test-Path "_source/package.json")) {
+            throw "The reconstructed source is incomplete."
+          }
+
+      - name: Install Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust MSVC toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build output
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "_source/src-tauri -> target"
+
+      - name: Install JavaScript build dependencies
+        working-directory: _source
+        run: npm install --no-audit --no-fund
+
+      - name: Verify source, interface, database, and packaging rules
+        working-directory: _source
+        run: npm run verify
+
+      - name: Build current-user NSIS setup executable
+        working-directory: _source
+        run: npm exec -- tauri build --bundles nsis
+
+      - name: Stage setup, portable ZIP, preview, manifest, and checksums
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "_source/src-tauri/target/release/bundle/nsis/*.exe" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer was not produced." }
+
+          $desktop = @(
+            "_source/src-tauri/target/release/Running_Task.exe",
+            "_source/src-tauri/target/release/running_task.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $desktop) { throw "Portable desktop executable was not produced." }
+
+          ./_source/scripts/Build-ReleaseAssets.ps1 `
+            -InstallerPath $installer.FullName `
+            -ExecutablePath (Resolve-Path $desktop).Path `
+            -ProjectRoot (Resolve-Path "_source").Path `
+            -OutputDirectory (Join-Path $PWD.Path "release")
+
+      - name: Upload ready-to-use Windows files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Running_Task-Windows-${{ github.run_number }}
+          path: |
+            release/Running_Task-*-Windows-x64-Setup.exe
+            release/Running_Task-*-Windows-x64-Portable.zip
+            release/Running_Task-*-Company-PC-Check.zip
+            release/Running_Task-*-Preview.html
+            release/Running_Task-*-START_HERE.txt
+            release/Running_Task-*-LAUNCH_GUIDE.md
+            release/Running_Task-*-RELEASE_NOTES.md
+            release/SHA256SUMS.txt
+            release/release-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish tagged GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = Get-ChildItem release -File | Where-Object {
+            $_.Name -match 'Setup\.exe$|Portable\.zip$|Company-PC-Check\.zip$|Preview\.html$|START_HERE\.txt$|LAUNCH_GUIDE\.md$|RELEASE_NOTES\.md$|SHA256SUMS\.txt$|release-manifest\.json$'
+          } | ForEach-Object { $_.FullName }
+          gh release create $env:GITHUB_REF_NAME $assets `
+            --title "Running_Task $env:GITHUB_REF_NAME" `
+            --generate-notes
