@@ -66,6 +66,20 @@ jobs:
             throw "The release-candidate patch could not be decompressed."
           }
 
+          # The approved source archive intentionally preserves CRLF for PowerShell
+          # files. Git patches are normalized to LF, so normalize those files before
+          # checking and applying the release-candidate patch.
+          Get-ChildItem "_source" -Recurse -File -Filter "*.ps1" | ForEach-Object {
+            $text = [IO.File]::ReadAllText($_.FullName)
+            if ($text.Contains("`r`n")) {
+              [IO.File]::WriteAllText(
+                $_.FullName,
+                $text.Replace("`r`n", "`n"),
+                [Text.UTF8Encoding]::new($false)
+              )
+            }
+          }
+
           git -C "_source" apply --check "../rc-from-0.3.patch"
           git -C "_source" apply "../rc-from-0.3.patch"
 
