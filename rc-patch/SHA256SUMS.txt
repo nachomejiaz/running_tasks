@@ -1,0 +1,1 @@
+a619c4b82ed472c38f0b29fa2f6ce9a59eda1a8a95db34d72377ec241e570ce7  rc-from-0.3.patch.xz
