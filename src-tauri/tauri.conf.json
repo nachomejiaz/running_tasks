@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Running_Task",
+  "version": "1.0.0-rc.1",
+  "identifier": "com.runningtask.desktop",
+  "build": {
+    "beforeBuildCommand": "npm run build:frontend",
+    "beforeDevCommand": "npm run build:frontend",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Running_Task",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1050,
+        "minHeight": 680,
+        "center": true,
+        "resizable": true,
+        "maximized": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Private local task and activity board",
+    "longDescription": "Running_Task is a private, local personal operations board with Topics, Subtopics, Cards, dated checklists, and Ball in Court tracking.",
+    "copyright": "Copyright 2026",
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "skip"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

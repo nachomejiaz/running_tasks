@@ -1,95 +1,63 @@
-# Running_Task Roadmap
+# Running_Task accelerated production roadmap
 
-The roadmap is organized by acceptance gate rather than calendar date. A build advances only after its tests pass and the preceding user-interface stage is approved.
+## Product strategy
 
-## Completed
+Running_Task is a local, single-user application. Production readiness is defined by reliable storage, recovery, safe upgrades, and successful operation on the target company PC—not by completing every possible feature before release.
 
-### 0.1.0-alpha.1 — Functional local-workspace foundation
+## Current build: 1.0.0-rc.1
 
-- Topic, Subtopic, Card Type, status, BIC, Card, and nested checklist model.
-- Board, List, Flow, Dashboard, Archive, filters, search, backups, and local SQLite architecture.
+**Status:** Source stabilization complete; native Windows build and target-PC acceptance pending.
 
-### 0.2.0-alpha.2 — Calendar and visual-system stage
+Release-candidate goals:
 
-- Monthly Calendar.
-- Dark-first professional UI.
-- Alliance No.1-first local font stack with system fallbacks.
-- Calendar creation and next-action-date placement.
+- Preserve the approved Dashboard, Topic Board, List, monthly Calendar, Flow, Archive, filters, Card details, and settings.
+- Serialize rapid local saves and retain failed saves for Retry.
+- Flush pending edits before the desktop window closes.
+- Fail closed when the database cannot be opened.
+- Prevent simultaneous desktop instances.
+- Create a one-time pre-upgrade SQLite safety backup.
+- Reject unsupported schema versions.
+- Build current-user Setup and Portable packages through GitHub Actions.
+- Complete real Windows acceptance without Administrator rights.
 
-### 0.3.0-alpha.3 — No-admin delivery and release automation
+## Next build: 1.0.0 production
 
-- Current-user installer enforcement.
-- Portable Windows package.
-- No-admin local build and publishing helpers.
-- GitHub Actions verification, Setup build, portable packaging, checksums, and tagged releases.
-- Launch and GitHub upload guides.
-- Packaging and version-consistency tests.
+Release immediately after all critical RC checks pass or any release-blocking defects are corrected.
 
-## Remaining planned builds
+Production gate:
 
-### 0.4.0-beta.1 — Daily-use productivity
+1. GitHub Actions compiles and packages the native Windows application.
+2. Setup installs for a standard user without an elevation prompt.
+3. Portable launch works from a user-owned folder.
+4. Create/edit/close/reopen preserves the latest data.
+5. Backup, restore, JSON export, and upgrade safety backup work on the compiled build.
+6. A second launch focuses the existing instance.
+7. Launch at sign-in behaves correctly.
+8. Uninstall/reinstall does not unexpectedly remove workspace data.
+9. No critical data-loss, startup, or primary-view defect remains.
+10. Company security policy either permits the application or documents the required IT approval.
 
-Planned scope:
+## After production: usage-driven releases
 
-- Card templates with reusable checklist structures.
-- Recurring tasks with explicit next-instance rules.
-- Local file links and attachment metadata without cloud upload.
-- Bulk status, BIC, Topic, and due-date changes.
-- Calendar drag/reschedule workflow, subject to interaction testing.
-- Improved command palette and keyboard-first capture.
+### 1.1.x — first-use refinements
 
-Acceptance tests:
+Prioritize only friction observed during daily use, such as faster task capture, small UI corrections, better keyboard behavior, missing filters, or Calendar refinements.
 
-- Template creation and task instantiation preserve hierarchy and dates.
-- Recurrence handles month ends, skipped instances, completion, and disabled rules.
-- Broken local file links fail safely without deleting Card data.
-- Bulk changes are transactional and undoable.
-- Keyboard-only creation, editing, filtering, and completion pass.
-- Existing 0.3 databases migrate without data loss.
+### 1.2.x — highest-value workflow extension
 
-### 0.5.0-beta.2 — Advanced tracking and insight
+Choose templates, recurrence, or reminders based on actual usage. None is predetermined as the next feature.
 
-Planned scope:
+### Later candidates
 
-- Custom fields for package-specific metadata.
-- Card dependencies and blocked-state indicators.
-- BIC aging, overdue trends, and Topic health reports.
-- CSV import/export mapping; OneNote migration remains excluded.
-- More saved-view controls and portable local view definitions.
+Attachments, custom fields, bulk editing, detailed history, dependencies, roadmap visualization, and analytics remain backlog options. They do not block production and will be assessed against real needs.
 
-Acceptance tests:
+## Test philosophy
 
-- Every custom-field type validates and round-trips through backup/export.
-- Dependency cycles are rejected.
-- Reports reconcile exactly with source Cards and checklist items.
-- CSV import uses preview, validation, duplicate detection, and rollback.
-- Large filter combinations remain responsive.
+Every production update must retain:
 
-### 0.6.0-rc.1 — Reliability and corporate-Windows hardening
-
-Planned scope:
-
-- Full Windows 10/11 acceptance run on clean standard-user profiles.
-- Upgrade and rollback testing across all prior database versions.
-- Accessibility audit and focus-order corrections.
-- Large-dataset performance tuning.
-- Crash-recovery and backup/restore drills.
-- Code-signing and IT-distribution readiness documentation.
-
-Acceptance tests:
-
-- Setup and portable launch without Administrator rights.
-- No task loss through forced-close, restart, migration, backup, or restore scenarios.
-- 10,000 Cards and 100,000 checklist items meet agreed interaction targets.
-- Screen-reader labels, contrast, keyboard focus, and non-color cues pass review.
-- Clean uninstall leaves user data intact unless explicitly removed.
-
-### 1.0.0 — Stable personal release
-
-Release gate:
-
-- All release-candidate blockers closed.
-- Signed or company-approved Windows distribution path selected.
-- Restore tested from a real backup on another Windows profile.
-- Complete user, backup, troubleshooting, and upgrade documentation.
-- Final source, installer, portable ZIP, checksums, and release notes published.
+- Automated source verification.
+- Database migration and compatibility tests when schema changes.
+- Backup and restore validation.
+- Upgrade testing against the latest production database.
+- A Windows packaging test.
+- A short target-PC smoke test before important work data is migrated.

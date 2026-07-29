@@ -1,103 +1,96 @@
-# GitHub Upload and Build Guide
+# GitHub upload guide
 
-Approved repository:
+Target repository: `https://github.com/nachomejiaz/running_tasks.git`  
+Target branch for this release candidate: `release/v1.0.0-rc.1`
+
+## Current 1.0.0-rc.1 status
+
+The repository is initialized with build status, release documentation, and a Windows workflow. The complete RC source should be published to `release/v1.0.0-rc.1`. The workflow is configured to build `release/**` branches, so the Windows release-candidate artifact can be tested before the branch is merged into `main`.
+
+## Route A: browser upload — easiest and no local tools
+
+Use the supplied file:
 
 ```text
-https://github.com/nachomejiaz/running_tasks.git
+Running_Task-1.0.0-rc.1-github-web-upload.zip
 ```
 
-## Current publication status
+1. Download and extract the ZIP to a normal folder.
+2. Open the extracted payload folder.
+3. Select **everything inside the payload folder**, including `.github`, `frontend`, `src-tauri`, `scripts`, `tests`, `docs`, and all root files. Do **not** upload the outer payload folder itself, or the project will be nested one level too deep.
+4. Sign in to GitHub in a browser.
+5. Open `nachomejiaz/running_tasks`.
+6. Select **Add file**, then **Upload files**.
+7. Drag the selected contents into the upload area.
+8. Enter the commit message `Build Running_Task 1.0.0 release candidate`.
+9. Create or select branch `release/v1.0.0-rc.1`, then commit the upload there. Merge to `main` only after the Windows acceptance gate passes.
+10. Open **Actions**. The Windows build starts automatically.
 
-The connected GitHub integration can write repository text files, and the 0.3.0-alpha.3 version, roadmap, launch guide, release notes, and validation status are now stored on `main`.
+The prepared payload contains fewer than 100 files and no file approaches GitHub's browser-upload size limit. Extract the ZIP first; do not upload the outer ZIP or outer payload folder as the project.
 
-The full source package is delivered separately as:
+## Route B: no-admin publishing helper
 
-- `Running_Task-0.3.0-alpha.3-source.zip`
-- `Running_Task-0.3.0-alpha.3-repository.zip`
-- `Running_Task-0.3.0-alpha.3-repository.bundle`
+Use this route only when Git for Windows and GitHub CLI are already approved and installed.
 
-The repository-ready ZIP is the easiest path because it already contains the complete source, Git history, and configured GitHub remote.
+1. Extract the repository-ready Running_Task ZIP.
+2. Double-click `PUBLISH_TO_GITHUB_NO_ADMIN.bat`.
+3. Complete browser sign-in when prompted.
+4. Wait for the normal commit and push to finish.
+5. Open the repository and then **Actions**.
 
-## Easiest full-source upload
+The helper does not install tools, request elevation, store a token, or force-push. It safely recognizes the existing Running_Task placeholder/source-bundle staging repository.
 
-1. Download `Running_Task-0.3.0-alpha.3-repository.zip` from the build handoff.
-2. Extract the entire ZIP to a normal Windows folder.
-3. Open the extracted `Running_Task-0.3.0-alpha.3` folder.
-4. Double-click `PUBLISH_TO_GITHUB_NO_ADMIN.bat` when Git for Windows and GitHub CLI are already installed for your user.
-5. Complete the browser sign-in when requested.
-6. Wait for the normal commit and push to finish.
+## Route C: GitHub Desktop
 
-This no-admin route never installs Git or GitHub CLI, never stores a token in the project, and never force-pushes. It stops with a clear message if either command is missing.
+1. Open GitHub Desktop and sign in.
+2. Clone `nachomejiaz/running_tasks` to a user-owned folder.
+3. Copy the complete Running_Task source into the cloned folder.
+4. Remove obsolete `source-bundle` staging folders after the expanded source is present.
+5. Do not copy `node_modules`, `src-tauri/target`, `build-logs`, SQLite files, backups, or exports.
+6. Review the changed files.
+7. Commit with `Build Running_Task 1.0.0 release candidate`.
+8. Select **Push origin**.
 
-## Maintainer upload helper
+## Route D: command line
 
-`PUBLISH_TO_GITHUB.bat` can install Git for Windows or GitHub CLI through `winget` when they are missing. That may be restricted or require approval on a company PC. Use it only on an approved development computer.
-
-## Standard command-line route
-
-From an extracted repository-ready ZIP:
+From the repository-ready project folder:
 
 ```powershell
+git remote set-url origin https://github.com/nachomejiaz/running_tasks.git
 git status
-git remote -v
-git pull --rebase origin main
-git push -u origin main
-```
-
-When publishing from a plain source ZIP rather than the repository-ready ZIP:
-
-```powershell
-git clone https://github.com/nachomejiaz/running_tasks.git Running_Task
-# Copy the source files into the clone, preserving .git
 git add --all
-git commit -m "Publish Running_Task 0.3.0-alpha.3"
-git pull --rebase origin main
-git push origin main
+git commit -m "Build Running_Task 1.0.0 release candidate"
+git checkout -B release/v1.0.0-rc.1
+git pull --rebase origin release/v1.0.0-rc.1
+git push -u origin release/v1.0.0-rc.1
 ```
 
-Do not force-push. Do not put a personal access token in a source file.
+When the delivered repository already contains the final commit, `git status` may show nothing to commit. In that case, run only the pull/rebase and push commands. Authenticate through GitHub's browser or credential-manager flow. Never put a token in a source file.
 
-## Run the Windows build in GitHub
+## Route E: another approved computer
 
-After the complete source tree and `.github/workflows/build-windows.yml` are on `main`:
+When the company PC blocks source upload or Git tools:
 
-1. Open the repository.
-2. Select **Actions**.
-3. Select **Build Running_Task for Windows**.
-4. Select **Run workflow**.
-5. Choose `main` and start the run.
-6. Wait for all steps to turn green.
-7. Open the completed run.
-8. Download the `Running_Task-Windows-...` artifact.
-9. Extract it before launching the Setup or Portable ZIP.
+1. Transfer the repository-ready ZIP through an approved method.
+2. Publish it from an approved development or personal computer.
+3. Let GitHub Actions build the Windows files.
+4. Download only the finished artifact on the company PC.
 
-A successful artifact contains:
+## Run and download the Windows build
 
-- Current-user Setup executable.
-- Portable ZIP.
-- Self-contained preview.
-- SHA-256 checksums.
-- JSON release manifest.
+1. Open **Actions**.
+2. Open **Build Running_Task for Windows**.
+3. Open the newest successful run, or select **Run workflow** to start one manually.
+4. Download the artifact beginning `Running_Task-Windows-`.
+5. Extract it.
+6. Run the versioned Setup executable or extract the versioned Portable ZIP.
 
-## Publish a tagged release
+A push to `main`, a push to `release/**`, and a `v*` tag trigger the workflow. A version tag also creates a GitHub release containing the same verified files.
 
-From an approved Git environment:
+## Repository safety rules
 
-```powershell
-git tag v0.3.0-alpha.3
-git push origin v0.3.0-alpha.3
-```
-
-The tag starts the Windows workflow. When successful, it creates a GitHub Release and attaches the ready-to-use files.
-
-## Files that must never be uploaded
-
-The source `.gitignore` excludes common runtime and private data, including:
-
-- SQLite databases and WAL files.
-- Personal exports.
-- Build logs.
-- Rust compiler output.
-- Locally generated release binaries.
-
-Before every push, review `git status` and confirm that no personal workspace data appears.
+- Never commit SQLite databases, backups, exports, real work records, passwords, or tokens.
+- Never force-push through the supplied helper.
+- Run `npm run verify` before publishing when developer tools are available.
+- Use a tag such as `v1.0.0-rc.1` only after the source commit and Windows Actions build succeed.
+- Review every changed file before committing from GitHub Desktop or the command line.

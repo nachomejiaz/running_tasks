@@ -1,0 +1,28 @@
+{
+  "name": "running_task",
+  "version": "1.0.0-rc.1",
+  "private": true,
+  "description": "A private, local personal operations board for Windows.",
+  "scripts": {
+    "build:frontend": "tsc -p frontend/tsconfig.json",
+    "check:syntax": "node --check frontend/dist/app.js",
+    "test:static": "node tests/frontend-smoke.mjs",
+    "test:render": "node tests/render-smoke.mjs",
+    "verify": "npm run build:frontend && npm run build:preview && npm run check:syntax && npm run test:static && npm run test:schema && npm run test:domain && npm run test:reliability && npm run test:render && npm run test:release && npm run test:packaging",
+    "dev": "npm run build:frontend && tauri dev",
+    "build:windows": "npm run verify && tauri build --bundles nsis",
+    "build:windows:all": "npm run verify && tauri build --bundles nsis,msi",
+    "preview": "node scripts/preview-server.mjs",
+    "tauri": "tauri",
+    "test:domain": "node tests/domain-rules.mjs",
+    "test:schema": "node --no-warnings tests/sql-schema-smoke.mjs",
+    "build:preview": "node scripts/build-single-file-preview.mjs",
+    "test:release": "node tests/release-config-smoke.mjs",
+    "test:packaging": "node tests/release-packaging-smoke.mjs",
+    "test:reliability": "node tests/reliability-smoke.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}

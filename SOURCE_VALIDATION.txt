@@ -1,43 +1,65 @@
 RUNNING_TASK SOURCE VALIDATION
 ==============================
-Version: 0.3.0-alpha.3
-Validation date: July 24, 2026
+Version: 1.0.0-rc.1
+Validation date: July 27, 2026
+Branch: release/v1.0.0-rc.1
 
 RESULT
 ------
-PASS - all source-level verification available in the Linux build environment.
+PASS - all source-level checks available in the current Linux environment.
 
-COMMAND
--------
+REPEATABLE COMMAND
+------------------
 npm run verify
 
-VERIFIED STEPS
---------------
-1. TypeScript compilation: PASS.
-2. Self-contained preview generation: PASS.
-3. JavaScript syntax validation: PASS.
-4. Static product and configuration checks: PASS.
-5. SQLite schema smoke test: PASS.
-6. Domain rules for next action, due date, BIC, Calendar, progress, Done, and Archive: PASS.
-7. React render smoke checks for every primary view and overlay: PASS.
-8. No-admin packaging, GitHub workflow, release assets, and version consistency: PASS.
+PASSED
+------
+1. TypeScript compilation.
+2. Self-contained browser-preview generation.
+3. Compiled JavaScript syntax validation.
+4. Static product, route, styling, local-asset, and configuration checks.
+5. Live SQLite schema execution and expected-table checks.
+6. Existing domain rules for next action, BIC, Calendar, progress, Done,
+   Archive, JSON import, CSV export, and Markdown export.
+7. Serialized-save ordering and coalescing.
+8. Failed-save retention and successful explicit retry.
+9. Fail-closed desktop load recovery with no replacement workspace queued.
+10. Recursive React rendering for all primary views, overlays, and recovery UI.
+11. Current-user NSIS, WebView2-skip, portable package, company-PC check,
+    release manifest, checksums, and GitHub Actions configuration.
+12. Application, frontend, Tauri, Cargo, documentation, and packaging version
+    consistency for 1.0.0-rc.1.
+13. Single-instance, pre-upgrade backup, schema rejection, and close-guard
+    source markers.
 
-ADDITIONAL STATIC VALIDATION
-----------------------------
-- GitHub Actions YAML parsed successfully.
-- Production and preview HTML contain no remote script or stylesheet references.
-- No GitHub access-token pattern appears in the publishing helper.
-- The publishing helper contains no force-push command.
-- Generated preview and compiled frontend report version 0.3.0-alpha.3.
+IMPORTANT SOURCE REVIEW
+-----------------------
+- Rapid edits are saved through one serialized queue; later snapshots cannot be
+  overtaken by older in-flight writes.
+- A failed snapshot stays pending and the top bar exposes Retry.
+- Desktop database load errors show recovery controls and never substitute
+  starter data.
+- A second desktop launch focuses the existing instance.
+- Existing workspaces receive a one-time Before_Upgrade backup when the stored
+  application version changes.
+- Unsupported schema versions fail closed.
+- Backup, restore, import, and export flush pending edits first.
 
 NOT EXECUTED IN THIS ENVIRONMENT
 --------------------------------
-- Native Windows Rust compilation.
-- NSIS installer generation.
+- Rust/Cargo compilation.
+- Native Windows Tauri executable compilation.
+- NSIS setup generation.
 - Portable Windows executable launch.
-- Clean standard-user Windows installation.
-- Windows launch-at-sign-in acceptance test.
-- Windows backup/restore and uninstall acceptance run.
-- Company endpoint-policy or code-signing validation.
+- Standard-user installation without elevation.
+- Real SQLite persistence, backup, restore, and upgrade on Windows.
+- Launch-at-sign-in and single-instance behavior on Windows.
+- Uninstall/reinstall data-retention behavior.
+- Company AppLocker, WDAC, SmartScreen, antivirus, WebView2, or endpoint-policy
+  acceptance.
+- Code-signing review.
 
-Those checks are delegated to the Windows GitHub Actions workflow and the manual Windows acceptance checklist. The source should not be treated as a production Windows release until those tests pass.
+Those checks are delegated to the Windows GitHub Actions build and
+`docs/RC_ACCEPTANCE_CHECKLIST.md`. This is a release candidate, not the final
+v1.0.0 production release, until the native Windows artifact and target-PC
+critical data-safety checks pass.

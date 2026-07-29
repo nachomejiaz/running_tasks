@@ -1,59 +1,59 @@
-# Running_Task Launch Guide
+# Running_Task launch guide
 
-This guide is written for a normal user on a managed Windows computer. Building from source is not required.
+## Recommended company-PC route
 
-## Recommended: current-user Setup
+Use the prebuilt artifact from GitHub Actions. Normal installation does not require Node.js, Rust, Visual Studio, Git, GitHub CLI, or Administrator credentials.
 
-After the complete source is uploaded and the Windows workflow is enabled:
+1. Open `nachomejiaz/running_tasks` in a browser.
+2. Open **Actions**, then the newest successful **Build Running_Task for Windows** run.
+3. Download the artifact whose name begins `Running_Task-Windows-`.
+4. Extract the downloaded ZIP.
+5. Optional: extract `Running_Task-<version>-Company-PC-Check.zip` and run `CHECK_COMPANY_PC_COMPATIBILITY.bat`.
+6. Double-click `Running_Task-<version>-Windows-x64-Setup.exe`.
+7. Complete the current-user installer.
+8. Open Running_Task from the Start menu.
+9. In Settings, confirm **Launch when the computer starts** is enabled.
 
-1. Open the repository's **Actions** tab.
-2. Open the newest successful **Build Running_Task for Windows** run.
-3. Download the `Running_Task-Windows-...` artifact.
-4. Extract the downloaded artifact ZIP.
-5. Double-click `Running_Task-<version>-Windows-x64-Setup.exe`.
-6. Complete the installer.
-7. Open **Running_Task** from the Start menu.
-8. Open **Settings** and confirm **Launch when the computer starts** is enabled.
+The setup installs for the current Windows user rather than into `C:\Program Files`. It also skips WebView2 installation so the setup does not launch a prerequisite installer that might request elevation. WebView2 must already exist; the compatibility check reports whether it was found in common locations.
 
-The Setup configuration uses `currentUser`. Running_Task therefore installs beneath the current Windows user's profile and should not request Administrator elevation.
+## Portable no-install route
 
-A company may still block unsigned or unapproved executables through endpoint-security policy. Running_Task does not attempt to bypass those controls. Ask IT to approve, sign, or deploy the build when it is blocked.
+Use this route when installer execution is restricted but a standalone executable is permitted.
 
-## No-installer portable launch
+1. Extract `Running_Task-<version>-Windows-x64-Portable.zip`.
+2. Move the extracted folder to a permanent user-owned location such as `Documents\Running_Task`.
+3. Double-click `Running_Task.exe`.
+4. Do not move the executable after enabling automatic startup because the startup entry points to that path.
 
-1. Download the same successful GitHub Actions artifact.
-2. Extract `Running_Task-<version>-Windows-x64-Portable.zip` into a folder you own.
-3. Open the extracted folder.
-4. Double-click `Running_Task.exe`.
+The portable and installed builds use the same local-data model. Removing or moving the executable does not intentionally delete the SQLite workspace.
 
-The portable executable and installed executable use the same local data model. The SQLite database remains in the Windows local application-data folder, so replacing or moving the executable does not move or erase the database.
+## Browser preview route
 
-## Interface-only preview
+1. Open `Running_Task-<version>-Preview.html` from the Actions artifact, or `preview/Running_Task_Preview.html` from source.
+2. Review Dashboard, Board, List, Calendar, Flow, Archive, Settings, Create Task, filters, and import/export.
 
-Open `preview/Running_Task_Preview.html` directly in a browser. It needs no installation and contains representative demo data.
+Preview data is stored by the browser and is separate from the production SQLite database. Do not use the preview as the only copy of important work.
 
-The preview uses browser-local storage. It is not the production SQLite database and should not hold the only copy of important work.
+## First launch checks
 
-## Local no-admin compilation
-
-`BUILD_WINDOWS_NO_ADMIN.bat` is available for a developer account that already has all prerequisites:
-
-- Node.js and npm.
-- Rust and Cargo.
-- The `x86_64-pc-windows-msvc` toolchain.
-- Microsoft Visual C++ Build Tools.
-
-The helper passes `-SkipToolInstall`. It never installs prerequisites and stops when any are missing. This avoids elevation prompts but cannot remove the compiler requirement.
-
-## Maintainer compilation
-
-`BUILD_WINDOWS_INSTALLER.bat` may install missing prerequisites. Installing Microsoft compiler components can require Administrator approval. Normal users should use the prebuilt GitHub file instead.
-
-## First-launch checklist
-
-1. Create one test task.
+1. Create a test task.
 2. Add a dated checklist item and BIC.
 3. Close and reopen the application; confirm the task remains.
-4. Open **Archive & Backups** and create a manual backup.
-5. Open the data folder and confirm that the database and backup are present.
-6. Sign out and back in once to validate launch-at-sign-in, when company policy permits it.
+4. Open Archive & Backups and create a manual backup.
+5. Export JSON once and confirm the file appears in the local exports folder.
+6. Sign out and back in once to test automatic startup when company policy permits it.
+
+## When Windows or company policy blocks the application
+
+1. Run `CHECK_COMPANY_PC_COMPATIBILITY.bat` from the company-PC check package.
+2. Keep the generated `compatibility-report.txt`.
+3. Give IT the report, the setup or portable file, `SHA256SUMS.txt`, and `docs/SECURITY_AND_PRIVACY.md`.
+4. Ask IT to review, sign, allowlist, or deploy the application through the approved process.
+
+Running_Task does not disable or bypass SmartScreen, AppLocker, Windows Defender Application Control, antivirus, or endpoint-management rules.
+
+## Local source-build routes
+
+- `BUILD_WINDOWS_NO_ADMIN.bat` never installs tools and stops when prerequisites are missing.
+- `BUILD_WINDOWS_INSTALLER.bat` is a maintainer tool and may need elevation to install compiler prerequisites.
+- GitHub Actions is the recommended release builder for a managed company PC.

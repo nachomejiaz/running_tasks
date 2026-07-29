@@ -1,0 +1,118 @@
+RUNNING_TASK - START HERE
+Version 1.0.0-rc.1
+
+Running_Task is a private local task board for Windows. Production data stays in
+a local SQLite database. No account or cloud service is required.
+
+======================================================================
+1. FASTEST REVIEW - NO INSTALLATION
+======================================================================
+
+1. Open the preview folder.
+2. Double-click Running_Task_Preview.html.
+3. Review Dashboard, Board, List, Calendar, Flow, Archive, Settings,
+   Create Task, checklists, filters, and import/export.
+
+The preview contains demo data and stores changes in browser-local storage.
+The desktop application uses SQLite and starts with a clean workspace.
+
+======================================================================
+2. NORMAL COMPANY-PC INSTALLATION - NO ADMINISTRATOR RIGHTS
+======================================================================
+
+1. Open https://github.com/nachomejiaz/running_tasks in a browser.
+2. Select Actions.
+3. Open the newest successful "Build Running_Task for Windows" run.
+4. Download the artifact whose name starts with Running_Task-Windows-.
+5. Extract the downloaded ZIP.
+6. Optional: extract Company-PC-Check.zip and run
+   CHECK_COMPANY_PC_COMPATIBILITY.bat.
+7. Double-click the file ending in Windows-x64-Setup.exe.
+8. Complete the current-user installer.
+9. Open Running_Task from the Start menu.
+10. Open Settings and confirm "Launch when the computer starts" is enabled.
+
+Running_Task itself is configured not to request Administrator rights. The setup
+does not install Microsoft WebView2; WebView2 must already be present. When the
+compatibility report says it is missing, ask IT to deploy the approved runtime.
+
+Company policy may still block an unsigned or unapproved executable. Do not
+bypass company controls. Give IT the compatibility report, setup file,
+SHA256SUMS.txt, and docs\SECURITY_AND_PRIVACY.md.
+
+======================================================================
+3. PORTABLE FALLBACK - NO INSTALLER
+======================================================================
+
+1. From the same Actions artifact, extract the file ending in Portable.zip.
+2. Move the extracted folder to a permanent user-owned location, for example:
+   Documents\Running_Task
+3. Double-click Running_Task.exe.
+4. Keep that folder at the same path after enabling automatic startup.
+
+The portable application still stores the SQLite workspace in the current
+Windows user's local application-data folder, not beside the executable.
+
+======================================================================
+4. FIRST FIVE THINGS TO TRY
+======================================================================
+
+1. Click Create Task.
+2. Pick a Topic and optional Subtopic.
+3. Add checklist items with dates and Ball in Court assignments.
+4. Switch among Board, List, Calendar, and Flow.
+5. Open Archive & Backups, create a manual backup, and export JSON once.
+
+======================================================================
+5. BUILDING FROM SOURCE
+======================================================================
+
+Normal users do not need to build the application.
+
+- BUILD_WINDOWS_NO_ADMIN.bat never installs tools. It only works when Node.js,
+  Rust, and Microsoft C++ Build Tools are already installed.
+- BUILD_WINDOWS_INSTALLER.bat is for maintainers. Installing missing compiler
+  tools can require Administrator approval.
+- GitHub Actions is the recommended build computer.
+
+======================================================================
+6. UPLOADING THE COMPLETE SOURCE TO GITHUB
+======================================================================
+
+The repository is initialized at:
+https://github.com/nachomejiaz/running_tasks
+
+One-time browser upload, with no Git installation or Administrator rights:
+
+1. Extract Running_Task-1.0.0-rc.1-github-web-upload.zip.
+2. Open the extracted payload folder.
+3. Select everything INSIDE that folder, including .github, frontend, src-tauri,
+   scripts, tests, docs, and the root files. Do not upload the outer payload
+   folder as one nested directory.
+4. Open the repository in a browser.
+5. Choose Add file, then Upload files.
+6. Drag the selected contents into the upload area.
+7. Enter: Build Running_Task 1.0.0 release candidate
+8. Commit to release/v1.0.0-rc.1. Merge to main only after acceptance.
+9. Open Actions and wait for Build Running_Task for Windows.
+10. Download and extract the Running_Task-Windows- artifact.
+
+For future source updates, use GitHub Desktop or double-click
+PUBLISH_TO_GITHUB_NO_ADMIN.bat when Git and GitHub CLI are already installed.
+The helper does not install tools, store a token, or force-push.
+
+Read next:
+- docs\LAUNCH_GUIDE.md
+- docs\NO_ADMIN_INSTALL.md
+- docs\GITHUB_UPLOAD_GUIDE.md
+- docs\ROADMAP.md
+- docs\TROUBLESHOOTING.md
+
+======================================================================
+7. RELEASE-CANDIDATE DATA SAFETY CHECK
+======================================================================
+
+Before moving important work into this build, complete
+`docs\RC_ACCEPTANCE_CHECKLIST.md` using a test workspace. The source tests have
+passed, but the native setup, portable application, upgrade path, autostart,
+and company endpoint policy must still be confirmed on the target Windows PC.

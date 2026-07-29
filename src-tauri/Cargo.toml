@@ -1,0 +1,23 @@
+[package]
+name = "running_task"
+version = "1.0.0-rc.1"
+description = "A private, local personal operations board"
+authors = ["Running_Task"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "running_task_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
