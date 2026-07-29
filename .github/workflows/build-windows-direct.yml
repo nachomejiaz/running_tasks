@@ -1,0 +1,128 @@
+name: Build Running_Task 1.0 RC - Direct Source
+
+on:
+  push:
+    branches:
+      - "release/v1.0.0-rc.1"
+  pull_request:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-rc:
+    name: Verify and package v1.0.0-rc.1
+    runs-on: windows-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out expanded source
+        uses: actions/checkout@v4
+
+      - name: Confirm repository layout and version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $required = @(
+            "package.json",
+            "VERSION",
+            "frontend/tsconfig.json",
+            "src-tauri/Cargo.toml",
+            "src-tauri/tauri.conf.json",
+            "scripts/Build-ReleaseAssets.ps1"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "Required source file is missing: $path"
+            }
+          }
+          $version = (Get-Content "VERSION" -Raw).Trim()
+          if ($version -ne "1.0.0-rc.1") {
+            throw "Expected VERSION 1.0.0-rc.1 but found '$version'."
+          }
+          Write-Host "Expanded source tree confirmed at $PWD"
+
+      - name: Install Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust MSVC toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build output
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install JavaScript dependencies
+        shell: pwsh
+        run: |
+          if (Test-Path "package-lock.json") {
+            npm ci --no-audit --no-fund
+          } else {
+            npm install --no-audit --no-fund
+          }
+
+      - name: Verify source, interface, data rules, and packaging
+        run: npm run verify
+
+      - name: Build current-user NSIS installer
+        run: npm exec -- tauri build --bundles nsis
+
+      - name: Prepare installer, portable package, compatibility checker, and checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw "The NSIS setup executable was not produced."
+          }
+
+          $desktop = @(
+            "src-tauri/target/release/running_task.exe",
+            "src-tauri/target/release/Running_Task.exe"
+          ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $desktop) {
+            throw "The desktop executable was not produced."
+          }
+
+          ./scripts/Build-ReleaseAssets.ps1 `
+            -InstallerPath $installer.FullName `
+            -ExecutablePath (Resolve-Path $desktop).Path `
+            -ProjectRoot $PWD.Path `
+            -OutputDirectory (Join-Path $PWD.Path "release")
+
+      - name: Upload ready-to-use Windows release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: Running_Task-1.0.0-rc.1-Windows-${{ github.run_number }}
+          path: |
+            release/Running_Task-*-Windows-x64-Setup.exe
+            release/Running_Task-*-Windows-x64-Portable.zip
+            release/Running_Task-*-Company-PC-Check.zip
+            release/Running_Task-*-Preview.html
+            release/Running_Task-*-START_HERE.txt
+            release/Running_Task-*-LAUNCH_GUIDE.md
+            release/Running_Task-*-RELEASE_NOTES.md
+            release/SHA256SUMS.txt
+            release/release-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload generated dependency lockfiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: Running_Task-1.0.0-rc.1-Lockfiles-${{ github.run_number }}
+          path: |
+            package-lock.json
+            src-tauri/Cargo.lock
+          if-no-files-found: warn
+          retention-days: 30
