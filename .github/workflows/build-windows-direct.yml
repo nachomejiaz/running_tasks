@@ -17,6 +17,8 @@ jobs:
     name: Verify and package v1.0.0-rc.1
     runs-on: windows-latest
     timeout-minutes: 75
+    env:
+      NODE_OPTIONS: --unhandled-rejections=strict
 
     steps:
       - name: Check out expanded source
@@ -32,7 +34,8 @@ jobs:
             "frontend/tsconfig.json",
             "src-tauri/Cargo.toml",
             "src-tauri/tauri.conf.json",
-            "scripts/Build-ReleaseAssets.ps1"
+            "scripts/Build-ReleaseAssets.ps1",
+            "tests/render-smoke.mjs"
           )
           foreach ($path in $required) {
             if (-not (Test-Path -LiteralPath $path)) {
@@ -60,14 +63,31 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
 
-      - name: Install JavaScript dependencies
+      - name: Install pinned JavaScript dependencies
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           if (Test-Path "package-lock.json") {
             npm ci --no-audit --no-fund
           } else {
             npm install --no-audit --no-fund
           }
+
+      - name: Report toolchain and inspect compiled frontend
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          node --version
+          npm --version
+          npm exec -- tsc --version
+          npm exec -- tauri --version
+          npm ls --depth=0
+          npm run build:frontend
+          Write-Host "frontend/dist contents:"
+          Get-ChildItem "frontend/dist" -Recurse -File |
+            Sort-Object FullName |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize
 
       - name: Verify source, interface, data rules, and packaging
         run: npm run verify

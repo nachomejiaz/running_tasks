@@ -22,7 +22,7 @@
     "test:reliability": "node tests/reliability-smoke.mjs"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
-    "typescript": "^5.0.0"
+    "@tauri-apps/cli": "2.11.4",
+    "typescript": "5.8.3"
   }
 }
