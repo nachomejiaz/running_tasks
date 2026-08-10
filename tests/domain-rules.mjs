@@ -16,10 +16,11 @@ const { exports } = loadApplication([
   "prepareImportedWorkspace",
   "validateWorkspaceData",
   "isWaitingCard",
+  "calendarEntriesByDate",
   "firstActiveStatusId",
   "ensureDataShape"
 ]);
-const { defaultData, starterData, nextItemFor, nextDateFor, nextBicFor, progressFor, isDoneCard, calendarDaysForMonth, shiftMonth, workspaceCsv, workspaceMarkdown, workspaceSummary, prepareImportedWorkspace, validateWorkspaceData, isWaitingCard, firstActiveStatusId, ensureDataShape } = exports;
+const { defaultData, starterData, nextItemFor, nextDateFor, nextBicFor, progressFor, isDoneCard, calendarDaysForMonth, shiftMonth, workspaceCsv, workspaceMarkdown, workspaceSummary, prepareImportedWorkspace, validateWorkspaceData, isWaitingCard, calendarEntriesByDate, firstActiveStatusId, ensureDataShape } = exports;
 for (const [name, value] of Object.entries(exports)) {
   assert.ok(value, `Application test export is missing: ${name}`);
 }
@@ -141,4 +142,46 @@ assert.equal(upgraded.statuses.find(status => /^waiting/i.test(status.name)).wai
 assert.deepEqual(Array.from(upgraded.cards[0].tags), [], "A card without tags must not crash search or export.");
 assert.equal(upgraded.meta.schemaVersion >= 1, true);
 
-console.log("PASS next-action, BIC, waiting queue, calendar, archive, import, CSV, and Markdown rules");
+// Calendar shows every dated checklist step on its own date, not just the one
+// derived next action.
+const calData = defaultData();
+const multi = calData.cards.find(c => c.id === "card-rfi-coating");
+const multiItems = calData.checklistItems.filter(i => i.cardId === multi.id && i.dueDate);
+assert.ok(multiItems.length >= 3, "Expected a seeded task with several dated steps.");
+
+const entries = calendarEntriesByDate(calData, [multi]);
+const placedDates = new Set();
+let placedCount = 0;
+entries.forEach((list, key) => { placedDates.add(key); placedCount += list.length; });
+assert.equal(placedCount, multiItems.length, "Every dated checklist step should get its own calendar entry.");
+assert.equal(placedDates.size, new Set(multiItems.map(i => i.dueDate)).size, "Steps should be spread across each distinct due date.");
+for (const item of multiItems) {
+  const onDay = entries.get(item.dueDate) || [];
+  assert.ok(onDay.some(entry => entry.item && entry.item.id === item.id), `Step ${item.id} is missing from ${item.dueDate}.`);
+}
+// Completed steps still appear, flagged so the interface can mute them.
+const completedEntry = [].concat(...Array.from(entries.values())).find(entry => entry.completed);
+assert.ok(completedEntry, "A completed dated step should still be placed on its date.");
+
+// The target-date fallback must not add a duplicate entry when dated steps exist.
+const withTarget = { ...multi, targetDate: "2030-04-09" };
+const withTargetEntries = calendarEntriesByDate(calData, [withTarget]);
+let withTargetCount = 0;
+withTargetEntries.forEach(list => { withTargetCount += list.length; });
+assert.equal(withTargetCount, multiItems.length, "A target date must not add an entry alongside dated steps.");
+assert.ok(!withTargetEntries.has("2030-04-09"), "The unused target date should not be placed.");
+
+// A task with no dated step falls back to a single overall-target entry.
+
+const bare = { ...multi, id: "card-bare", targetDate: "2030-04-09" };
+const bareData = { ...calData, checklistItems: calData.checklistItems.filter(i => i.cardId !== multi.id) };
+const bareEntries = calendarEntriesByDate(bareData, [bare]);
+assert.equal(bareEntries.size, 1);
+assert.equal(bareEntries.get("2030-04-09").length, 1);
+assert.equal(bareEntries.get("2030-04-09")[0].item, null, "A target-date entry has no checklist item.");
+
+// A task with neither dated steps nor a target date stays off the calendar.
+const undatedEntries = calendarEntriesByDate(bareData, [{ ...bare, targetDate: null }]);
+assert.equal(undatedEntries.size, 0);
+
+console.log("PASS next-action, BIC, waiting queue, per-step calendar, archive, import, CSV, and Markdown rules");

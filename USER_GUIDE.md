@@ -128,16 +128,18 @@ Expand a row to work with its checklist without opening the full drawer.
 
 ## 10. Calendar view
 
-Calendar view places every active task on its **derived next date**. This is the earliest dated unfinished checklist item; the task-level target date is used only when no unfinished checklist item has a date.
+Calendar view places every **dated checklist step** on its own due date. A task with four dated steps therefore appears on four days, so the month shows the actual workload rather than one entry per task.
+
+A task whose checklist has no dated step is placed once, on its overall target date. Completed steps stay visible on their date, muted and struck through, so a past week still reads as a record of what happened.
 
 Use the monthly Calendar to:
 
-- See scheduled work across Topics in one date grid.
+- See every scheduled action across Topics in one date grid.
 - Move between months with the arrow buttons.
 - Return to the current month with **Today**.
-- Open any task by clicking its calendar card.
+- Open the parent task by clicking any calendar entry.
 - Click the **+** in a day cell to create a task with that date prefilled for both its target date and first next-action date.
-- Open the **Unscheduled** queue for active tasks without a derived or target date.
+- Open the **Unscheduled** queue for active tasks with no dated step and no target date.
 - Apply the same Topic scope, search, BIC, status, priority, and due-window filters used by other active views.
 
 The Calendar starts on Monday and always renders six complete weeks so month-to-month navigation does not shift the overall layout.

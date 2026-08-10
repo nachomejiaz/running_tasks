@@ -134,6 +134,15 @@ function formatMonth(value: string): string {
   return parseMonthKey(value).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 interface CalendarDay { key: string; date: Date; inMonth: boolean; isToday: boolean; }
+interface CalendarEntry {
+  key: string;
+  date: string;
+  card: Card;
+  item: ChecklistItem | null;
+  title: string;
+  completed: boolean;
+  bic: Actor | undefined;
+}
 function calendarDaysForMonth(value: string): CalendarDay[] {
   const month = parseMonthKey(value);
   const start = new Date(month.getFullYear(), month.getMonth(), 1, 12, 0, 0, 0);
@@ -1021,28 +1030,75 @@ function ListView(props: any): any {
   </div>`;
 }
 
+/**
+ * Expands the supplied Cards into one Calendar entry per dated checklist item.
+ *
+ * A Card with several dated steps therefore appears on each of those dates
+ * rather than only on its derived next action. A Card with no dated checklist
+ * item still gets one entry from its overall target date, so nothing that
+ * carries a date disappears from the month.
+ */
+function calendarEntriesByDate(data: AppData, cards: Card[]): Map<string, CalendarEntry[]> {
+  const byDate = new Map<string, CalendarEntry[]>();
+  const push = (entry: CalendarEntry) => {
+    const list = byDate.get(entry.date);
+    if (list) list.push(entry); else byDate.set(entry.date, [entry]);
+  };
+  cards.forEach(card => {
+    const dated = checklistFor(data, card.id).filter(item => !!item.dueDate);
+    if (dated.length) {
+      dated.forEach(item => push({
+        key: item.id,
+        date: String(item.dueDate),
+        card,
+        item,
+        title: item.title,
+        completed: item.completed,
+        bic: actorById(data, item.bicId) || actorById(data, card.fallbackBicId)
+      }));
+      return;
+    }
+    if (card.targetDate) {
+      push({
+        key: `${card.id}-target`,
+        date: card.targetDate,
+        card,
+        item: null,
+        title: "Overall target date",
+        completed: false,
+        bic: nextBicFor(data, card)
+      });
+    }
+  });
+  const topicRank = (card: Card) => topicById(data, card.topicId)?.rank ?? 9999;
+  byDate.forEach(list => list.sort((a, b) =>
+    Number(a.completed) - Number(b.completed) ||
+    topicRank(a.card) - topicRank(b.card) ||
+    a.card.rank - b.card.rank ||
+    (a.item?.rank ?? 0) - (b.item?.rank ?? 0) ||
+    a.title.localeCompare(b.title)));
+  return byDate;
+}
+
 function CalendarView(props: any): any {
   const data: AppData = props.data;
   const cards: Card[] = props.cards;
   const days = calendarDaysForMonth(props.month);
   const monthStart = parseMonthKey(props.month);
   const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 12, 0, 0, 0);
-  const datedCards = cards.filter(card => !!nextDateFor(data, card));
-  const unscheduled = cards.filter(card => !nextDateFor(data, card));
-  const visibleMonthCount = datedCards.filter(card => {
-    const date = parseDateOnly(nextDateFor(data, card));
-    return !!date && date >= monthStart && date <= monthEnd;
-  }).length;
-  const cardsOn = (key: string): Card[] => datedCards
-    .filter(card => nextDateFor(data, card) === key)
-    .sort((a, b) => {
-      const topicA = topicById(data, a.topicId)?.rank || 9999;
-      const topicB = topicById(data, b.topicId)?.rank || 9999;
-      return topicA - topicB || a.rank - b.rank || a.title.localeCompare(b.title);
-    });
+  const entriesByDate = calendarEntriesByDate(data, cards);
+  const scheduledCardIds = new Set<string>();
+  entriesByDate.forEach(list => list.forEach(entry => scheduledCardIds.add(entry.card.id)));
+  const unscheduled = cards.filter(card => !scheduledCardIds.has(card.id));
+  let visibleMonthCount = 0;
+  entriesByDate.forEach((list, key) => {
+    const date = parseDateOnly(key);
+    if (date && date >= monthStart && date <= monthEnd) visibleMonthCount += list.length;
+  });
+  const entriesOn = (key: string): CalendarEntry[] => entriesByDate.get(key) || [];
   const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   return html`<div className="view-contents">
-    <${PageHeader} eyebrow=${props.selectedTopicId ? "Topic schedule" : "Monthly schedule"} title=${formatMonth(props.month)} subtitle="Each task is placed on the date of its earliest incomplete checklist item, with the overall target date as fallback.">
+    <${PageHeader} eyebrow=${props.selectedTopicId ? "Topic schedule" : "Monthly schedule"} title=${formatMonth(props.month)} subtitle="Every dated checklist step appears on its own due date. Tasks with no dated step are placed on their overall target date.">
       ${unscheduled.length ? html`<button className="btn btn-secondary" onClick=${() => props.onNavigate("list", props.selectedTopicId || null, "no-date")}><${Icon} name="help" size=${15}/>${unscheduled.length} unscheduled</button>` : null}
       <div className="calendar-nav" aria-label="Calendar month navigation">
         <button className="btn btn-secondary btn-icon" onClick=${() => props.onMonth(shiftMonth(props.month, -1))} aria-label="Previous month"><${Icon} name="arrowLeft" size=${17}/></button>
@@ -1052,12 +1108,12 @@ function CalendarView(props: any): any {
     <//>
     <${ActiveFilterBar} data=${data} selectedTopicId=${props.selectedTopicId} scope=${props.scope} filters=${props.filters} onClearTopic=${props.onClearTopic} onClearScope=${props.onClearScope} onFilter=${props.onFilter} onClearAll=${props.onClearFilters}/>
     <div className="content-scroll calendar-scroll">
-      <div className="calendar-summary"><span><strong>${visibleMonthCount}</strong> scheduled ${visibleMonthCount === 1 ? "task" : "tasks"} this month</span><span>Monday–Sunday · Click <strong>+</strong> on a day to schedule a task</span></div>
+      <div className="calendar-summary"><span><strong>${visibleMonthCount}</strong> scheduled ${visibleMonthCount === 1 ? "action" : "actions"} this month</span><span>Monday–Sunday · Click <strong>+</strong> on a day to schedule a task</span></div>
       <section className="calendar-shell" aria-label=${`Monthly calendar for ${formatMonth(props.month)}`}>
         <div className="calendar-weekdays">${weekdays.map(name => html`<div className="calendar-weekday" key=${name}>${name}</div>`)}</div>
         <div className="calendar-grid">
           ${days.map(day => {
-            const dayCards = cardsOn(day.key);
+            const dayEntries = entriesOn(day.key);
             const weekend = day.date.getDay() === 0 || day.date.getDay() === 6;
             return html`<article key=${day.key} className=${`calendar-day ${day.inMonth ? "" : "outside"} ${day.isToday ? "today" : ""} ${weekend ? "weekend" : ""}`}>
               <div className="calendar-day-header">
@@ -1065,20 +1121,18 @@ function CalendarView(props: any): any {
                 <button className="calendar-day-add" onClick=${() => props.onCreateDate(day.key)} title=${`Create task due ${day.key}`} aria-label=${`Create task due ${day.key}`}><${Icon} name="plus" size=${13}/></button>
               </div>
               <div className="calendar-day-events">
-                ${dayCards.map(card => {
+                ${dayEntries.map(entry => {
+                  const card = entry.card;
                   const topic = topicById(data, card.topicId);
-                  const type = typeById(data, card.cardTypeId);
-                  const status = statusById(data, card.statusId);
-                  const bic = nextBicFor(data, card);
-                  const next = nextItemFor(data, card);
-                  return html`<button key=${card.id} className=${`calendar-event ${dueClass(day.key)}`} style=${{ borderLeftColor: topic?.color || "var(--muted)" }} onClick=${() => props.onOpen(card.id)} title=${`${card.reference ? `${card.reference} — ` : ""}${card.title}${next ? `
-Next: ${next.title}` : ""}${bic ? `
-BIC: ${bic.name}` : ""}`}>
-                    <span className="calendar-event-title">${card.reference ? html`<span className="calendar-event-ref">${card.reference}</span>` : null}${card.title}</span>
-                    <span className="calendar-event-meta"><span className="calendar-event-topic"><span className="calendar-event-dot" style=${{ background: topic?.color || "var(--muted)" }}></span>${topic?.name || "No topic"}</span>${type ? html`<span className="calendar-event-type" style=${{ color: type.color }}>${type.name}</span>` : null}${status ? html`<span className="calendar-event-status" style=${{ color: status.color }}>${status.name}</span>` : null}</span>
+                  const cardLabel = `${card.reference ? `${card.reference} — ` : ""}${card.title}`;
+                  return html`<button key=${entry.key} className=${`calendar-event ${entry.completed ? "completed" : dueClass(day.key)}`} style=${{ borderLeftColor: topic?.color || "var(--muted)" }} onClick=${() => props.onOpen(card.id)} title=${`${entry.title}
+Task: ${cardLabel}
+BIC: ${entry.bic ? entry.bic.name : "Unassigned"}${entry.completed ? "\nCompleted" : ""}`}>
+                    <span className="calendar-event-title">${entry.completed ? html`<${Icon} name="check" size=${11}/>` : null}${entry.title}</span>
+                    <span className="calendar-event-meta"><span className="calendar-event-topic"><span className="calendar-event-dot" style=${{ background: topic?.color || "var(--muted)" }}></span>${cardLabel}</span>${entry.bic ? html`<span className="calendar-event-status">${entry.bic.name}</span>` : null}</span>
                   </button>`;
                 })}
-                ${!dayCards.length && day.inMonth ? html`<button className="calendar-empty-add" onClick=${() => props.onCreateDate(day.key)}>Add task</button>` : null}
+                ${!dayEntries.length && day.inMonth ? html`<button className="calendar-empty-add" onClick=${() => props.onCreateDate(day.key)}>Add task</button>` : null}
               </div>
             </article>`;
           })}

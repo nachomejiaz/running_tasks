@@ -78,7 +78,7 @@ Done is terminal and moves the Card out of active workspaces into Archive.
 - Dashboard.
 - Topic or Status Board.
 - Dense List.
-- Monthly Calendar based on each Card's derived next date.
+- Monthly Calendar placing each dated checklist item on its own date, with the Card target date as the fallback for Cards without dated items.
 - Checklist and BIC Flow.
 - Archive and Backups.
 - Settings.

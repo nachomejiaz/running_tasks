@@ -38,7 +38,7 @@ Default active statuses are To Do, In Progress, Waiting, Review, and Done. Done 
 - Dashboard with overdue, My Ball, waiting, upcoming, and Topic queues.
 - Board with Topic columns by default and optional Status columns.
 - Dense List with expandable checklists.
-- Monthly Calendar using each Card's derived next-action date.
+- Monthly Calendar placing every dated checklist step on its own date.
 - Flow showing dated checklist and BIC handoffs.
 - Archive & Backups for completed work, restore, import, export, and local data safety.
 - Settings for hierarchy, Card Types, statuses, BIC actors, appearance, startup, and backups.

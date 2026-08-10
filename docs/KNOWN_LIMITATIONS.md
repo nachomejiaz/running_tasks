@@ -23,7 +23,7 @@
 ## Task model
 
 - One primary BIC is supported per checklist item.
-- Card next date chooses one checklist item and does not display multiple same-day BIC owners as a combined value.
+- The Card next date shown on Board and List chooses one checklist item and does not display multiple same-day BIC owners as a combined value. Calendar is not affected: it places each dated step separately.
 - Nested checklist completion does not automatically force parent or child completion.
 - Dependencies between Cards are not implemented.
 - Recurring tasks are not implemented.
@@ -43,6 +43,7 @@
 - List columns are not user-reorderable or individually hideable.
 - Flow is an action-handoff visualization, not a dependency network or critical-path engine.
 - Calendar is monthly only. Drag-to-reschedule, week/day modes, recurrence, Gantt/Roadmap, analytics, and workload reports are not implemented.
+- A day with many dated steps scrolls inside its cell; there is no overflow summary yet.
 - Saved views do not store every visual preference.
 - Search is an in-memory structured text search, not SQLite FTS.
 - Mobile and multi-device layouts are not targets for this release.
