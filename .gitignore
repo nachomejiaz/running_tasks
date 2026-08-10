@@ -1,0 +1,38 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Rust and Tauri
+src-tauri/target/
+target/
+
+# Generated release installers
+release/*
+!release/README.txt
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Test output
+coverage/
+*.log
+# Never commit personal workspace data
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+Running_Task_Export_*.json
+Running_Task_Export_*.csv
+Running_Task_Export_*.md
+compatibility-report.txt
+release-ci/
+build-logs/
+
+# Claude Code workspace configuration
+.claude/
+
+# Local pre-1.1.0 history and payload archive (kept on disk, not in the repo)
+archive/

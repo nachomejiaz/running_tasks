@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { root } from "./test-harness.mjs";
@@ -74,23 +75,25 @@ for (const marker of ["Running_Task-Windows-", "Company-PC-Check", "CHECK_COMPAN
   assert.ok(launchGuide.includes(marker), `Launch guide marker missing: ${marker}`);
 }
 
-const ignoredDirs = new Set([".git", "node_modules", "target", "build-logs"]);
-function sourceFiles(directory, relative = "") {
-  const entries = fs.readdirSync(directory, { withFileTypes: true });
-  const result = [];
-  for (const entry of entries) {
-    if (entry.isDirectory() && ignoredDirs.has(entry.name)) continue;
-    const full = path.join(directory, entry.name);
-    const rel = path.join(relative, entry.name);
-    if (entry.isDirectory()) result.push(...sourceFiles(full, rel));
-    else if (!/\.(sqlite|sqlite-wal|sqlite-shm)$/i.test(entry.name) && !/^Running_Task_Export_/i.test(entry.name)) result.push({ full, rel });
-  }
-  return result;
+// Measure the tracked source tree, not the working directory. The previous
+// filesystem walk counted local scratch folders and archives that are ignored
+// by git, so an untracked directory beside the repo could fail the build.
+function trackedSourceFiles() {
+  const output = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" });
+  return output
+    .split("\0")
+    .filter(Boolean)
+    .map(rel => ({ rel, full: path.join(root, rel) }))
+    .filter(file => fs.existsSync(file.full));
 }
-const browserUploadFiles = sourceFiles(root);
-assert.ok(browserUploadFiles.length <= 100, `Browser upload contains ${browserUploadFiles.length} files; GitHub supports at most 100 per upload.`);
-for (const file of browserUploadFiles) {
-  assert.ok(fs.statSync(file.full).size <= 25 * 1024 * 1024, `${file.rel} exceeds GitHub's 25 MiB browser-upload limit.`);
+const trackedFiles = trackedSourceFiles();
+assert.ok(trackedFiles.length > 40, `Tracked source tree looks incomplete (${trackedFiles.length} files).`);
+for (const file of trackedFiles) {
+  assert.ok(fs.statSync(file.full).size <= 25 * 1024 * 1024, `${file.rel} exceeds GitHub's 25 MiB per-file limit.`);
+}
+for (const forbidden of [/\.sqlite(-wal|-shm)?$/i, /^Running_Task_Export_/i]) {
+  const leaked = trackedFiles.find(file => forbidden.test(path.basename(file.rel)));
+  assert.ok(!leaked, `Personal workspace data must never be tracked: ${leaked?.rel}`);
 }
 
 const combined = [workflow, noAdminBatch, maintainerBatch, builder, assets, compatibility, publisherNoAdmin, noAdminGuide, uploadGuide, publishHelper, launchGuide].join("\n");
