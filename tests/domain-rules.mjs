@@ -28,10 +28,10 @@ assert.deepEqual(Array.from(starter.topics, topic => topic.name), ["General", "P
 assert.deepEqual(Array.from(starter.actors, actor => actor.name), ["Me"]);
 
 const data = defaultData();
-const card = data.cards.find(item => item.id === "card-rfi-traffic");
+const card = data.cards.find(item => item.id === "card-rfi-coating");
 assert.ok(card, "Representative RFI task was not seeded.");
-assert.equal(nextItemFor(data, card).id, "i-rfi-2");
-assert.equal(nextDateFor(data, card), data.checklistItems.find(item => item.id === "i-rfi-2").dueDate);
+assert.equal(nextItemFor(data, card).id, "i-coat-2");
+assert.equal(nextDateFor(data, card), data.checklistItems.find(item => item.id === "i-coat-2").dueDate);
 assert.equal(nextBicFor(data, card).id, "actor-architect");
 const progress = progressFor(data, card);
 assert.equal(progress.done, 1);
@@ -39,8 +39,8 @@ assert.equal(progress.total, 4);
 assert.equal(progress.percent, 25);
 
 // Completing the current action advances both the date and the Ball in Court.
-data.checklistItems.find(item => item.id === "i-rfi-2").completed = true;
-assert.equal(nextItemFor(data, card).id, "i-rfi-3");
+data.checklistItems.find(item => item.id === "i-coat-2").completed = true;
+assert.equal(nextItemFor(data, card).id, "i-coat-3");
 assert.equal(nextBicFor(data, card).id, "actor-me");
 
 // A task without checklist rows falls back to its task-level target date and BIC.
@@ -72,13 +72,13 @@ assert.equal(shiftMonth("2026-12-01", 1), "2027-01-01");
 
 const csv = workspaceCsv(data);
 assert.match(csv, /Topic,Subtopic,Card Type,Status/);
-assert.match(csv, /RFI-2690/);
+assert.match(csv, /RFI-0102/);
 assert.match(csv, /Receive final response and next steps/);
 
 const markdown = workspaceMarkdown(data);
 assert.match(markdown, /# Running_Task workspace export/);
-assert.match(markdown, /## TP25/);
-assert.match(markdown, /RFI-2690/);
+assert.match(markdown, /## Package A/);
+assert.match(markdown, /RFI-0102/);
 assert.match(markdown, /Ball in Court/);
 
 const summary = workspaceSummary(data);

@@ -366,35 +366,38 @@ function defaultData() {
         { id: "status-review", name: "Review", color: "#6e5dc6", rank: 40, terminal: false },
         { id: "status-done", name: "Done", color: "#1f845a", rank: 50, terminal: true }
     ];
+    // Demo content only. Every name, reference, and organization here is a
+    // neutral placeholder: this dataset ships in the public browser preview and
+    // must never contain real project, client, or vendor information.
     const topics = [
         { id: "topic-general", name: "General", color: "#0c66e4", icon: "layers", rank: 10, archived: false },
-        { id: "topic-tp25", name: "TP25 — Concrete", color: "#8f5b2e", icon: "package", rank: 20, archived: false },
-        { id: "topic-tp92", name: "TP92 — Tile", color: "#6e5dc6", icon: "grid", rank: 30, archived: false },
-        { id: "topic-tp56", name: "TP56 — FFE", color: "#1f845a", icon: "package", rank: 40, archived: false },
+        { id: "topic-pkg-a", name: "Package A — Structure", color: "#8f5b2e", icon: "package", rank: 20, archived: false },
+        { id: "topic-pkg-b", name: "Package B — Finishes", color: "#6e5dc6", icon: "grid", rank: 30, archived: false },
+        { id: "topic-pkg-c", name: "Package C — Furnishings", color: "#1f845a", icon: "package", rank: 40, archived: false },
         { id: "topic-personal", name: "Personal", color: "#e56910", icon: "user", rank: 50, archived: false }
     ];
     const subtopics = [
         { id: "sub-general", topicId: "topic-general", name: "General", color: "#0c66e4", rank: 10, archived: false },
-        { id: "sub-restrooms", topicId: "topic-general", name: "Restrooms", color: "#1f845a", rank: 20, archived: false },
-        { id: "sub-dfh", topicId: "topic-general", name: "DFH", color: "#6e5dc6", rank: 30, archived: false },
-        { id: "sub-onboarding-25", topicId: "topic-tp25", name: "Onboarding", color: "#1f845a", rank: 10, archived: false },
-        { id: "sub-pco-25", topicId: "topic-tp25", name: "PCO", color: "#6e5dc6", rank: 20, archived: false },
-        { id: "sub-rfi-25", topicId: "topic-tp25", name: "RFI", color: "#0c66e4", rank: 30, archived: false },
-        { id: "sub-proc-92", topicId: "topic-tp92", name: "Procurement", color: "#1f845a", rank: 10, archived: false },
-        { id: "sub-onboarding-92", topicId: "topic-tp92", name: "Onboarding", color: "#0c66e4", rank: 20, archived: false },
-        { id: "sub-rfi-92", topicId: "topic-tp92", name: "RFI / Submittals", color: "#6e5dc6", rank: 30, archived: false },
-        { id: "sub-cm-92", topicId: "topic-tp92", name: "CM", color: "#b65c02", rank: 40, archived: false },
-        { id: "sub-proc-56", topicId: "topic-tp56", name: "Procurement", color: "#1f845a", rank: 10, archived: false },
-        { id: "sub-onboarding-56", topicId: "topic-tp56", name: "Onboarding", color: "#0c66e4", rank: 20, archived: false },
+        { id: "sub-area-a", topicId: "topic-general", name: "Area A", color: "#1f845a", rank: 20, archived: false },
+        { id: "sub-quality", topicId: "topic-general", name: "Quality Control", color: "#6e5dc6", rank: 30, archived: false },
+        { id: "sub-onboarding-a", topicId: "topic-pkg-a", name: "Onboarding", color: "#1f845a", rank: 10, archived: false },
+        { id: "sub-pco-a", topicId: "topic-pkg-a", name: "PCO", color: "#6e5dc6", rank: 20, archived: false },
+        { id: "sub-rfi-a", topicId: "topic-pkg-a", name: "RFI", color: "#0c66e4", rank: 30, archived: false },
+        { id: "sub-proc-b", topicId: "topic-pkg-b", name: "Procurement", color: "#1f845a", rank: 10, archived: false },
+        { id: "sub-onboarding-b", topicId: "topic-pkg-b", name: "Onboarding", color: "#0c66e4", rank: 20, archived: false },
+        { id: "sub-rfi-b", topicId: "topic-pkg-b", name: "RFI / Submittals", color: "#6e5dc6", rank: 30, archived: false },
+        { id: "sub-cm-b", topicId: "topic-pkg-b", name: "Change Management", color: "#b65c02", rank: 40, archived: false },
+        { id: "sub-proc-c", topicId: "topic-pkg-c", name: "Procurement", color: "#1f845a", rank: 10, archived: false },
+        { id: "sub-onboarding-c", topicId: "topic-pkg-c", name: "Onboarding", color: "#0c66e4", rank: 20, archived: false },
         { id: "sub-personal", topicId: "topic-personal", name: "Personal Admin", color: "#e56910", rank: 10, archived: false }
     ];
     const actors = [
         { id: "actor-me", name: "Me", organization: "Personal", color: "#0c66e4", rank: 10, archived: false },
-        { id: "actor-gensler", name: "Gensler", organization: "Design", color: "#6e5dc6", rank: 20, archived: false },
-        { id: "actor-rinaldi", name: "Rinaldi", organization: "Trade Partner", color: "#1f845a", rank: 30, archived: false },
-        { id: "actor-nibbi", name: "Nibbi", organization: "General Contractor", color: "#e56910", rank: 40, archived: false },
-        { id: "actor-osvaldo", name: "Osvaldo", organization: "Project Team", color: "#ae2e24", rank: 50, archived: false },
-        { id: "actor-ryan", name: "Ryan", organization: "Project Team", color: "#0055cc", rank: 60, archived: false },
+        { id: "actor-design", name: "Design Team", organization: "Design", color: "#6e5dc6", rank: 20, archived: false },
+        { id: "actor-trade", name: "Trade Partner", organization: "Subcontractor", color: "#1f845a", rank: 30, archived: false },
+        { id: "actor-gc", name: "General Contractor", organization: "Construction", color: "#e56910", rank: 40, archived: false },
+        { id: "actor-field", name: "Field Lead", organization: "Project Team", color: "#ae2e24", rank: 50, archived: false },
+        { id: "actor-pm", name: "Project Manager", organization: "Project Team", color: "#0055cc", rank: 60, archived: false },
         { id: "actor-architect", name: "Architect", organization: "Design", color: "#8270db", rank: 70, archived: false },
         { id: "actor-owner", name: "Owner", organization: "Client", color: "#227d9b", rank: 80, archived: false }
     ];
@@ -414,51 +417,51 @@ function defaultData() {
         lastActiveStatusId: null, completedAt: null, createdAt: stamp, updatedAt: stamp
     });
     const cards = [
-        card("card-openings-rfi", "topic-general", "sub-general", "type-rfi", "status-review", "RFI-1531.13", "Area 14 door frame openings", "Confirm coordination and capture the final response for the door-frame openings.", "High", 10),
-        card("card-long-lead", "topic-general", "sub-general", "type-log", "status-progress", "LOG-LL-01", "Long Lead Log", "Maintain the long-lead log and coordinate the current procurement dates.", "Normal", 20),
-        card("card-door-frames", "topic-general", "sub-dfh", "type-action", "status-waiting", "DFH-014", "Door-frame QC and priority walls", "Track the QC walk, markup, and release of door-frame priority walls.", "High", 30),
-        card("card-safety", "topic-tp25", "sub-onboarding-25", "type-submittal", "status-waiting", "SUB-025", "Safety submittals", "Collect and approve the complete safety-submittal package.", "High", 10),
-        card("card-pco-rau", "topic-tp25", "sub-pco-25", "type-pco", "status-progress", "PCO-RAU", "Remaining pre-security work", "Price and close the remaining RAU scope before security work begins.", "Critical", 20),
-        card("card-rfi-traffic", "topic-tp25", "sub-rfi-25", "type-rfi", "status-review", "RFI-2690", "Traffic coating at sidewalk", "Obtain the final response and confirm next steps for sidewalk traffic coating.", "High", 30),
-        card("card-tile-samples", "topic-tp92", "sub-rfi-92", "type-submittal", "status-waiting", "SUB-TILE-17", "Restroom tile samples", "Complete sample review, approval, and return to the trade partner.", "High", 10),
-        card("card-install-materials", "topic-tp92", "sub-proc-92", "type-procurement", "status-todo", "PROC-TILE-09", "Installation materials", "Confirm all installation materials and release them in Procore.", "Normal", 20),
-        card("card-tile-rfi", "topic-tp92", "sub-rfi-92", "type-rfi", "status-todo", "RFI-TBD", "Stone tile finish details", "Resolve stone-tile finish details and any required orientation information.", "Normal", 30),
-        card("card-furniture-log", "topic-tp56", "sub-proc-56", "type-log", "status-progress", "FFE-LL-01", "Furniture long-lead log", "Add furniture, verify dates, and keep the long-lead log current.", "Normal", 10),
-        card("card-tpal", "topic-tp56", "sub-proc-56", "type-procurement", "status-review", "TPAL-06", "TPAL schedule review", "Coordinate exclusions and return the reviewed TPAL schedule.", "High", 20),
+        card("card-rfi-openings", "topic-general", "sub-general", "type-rfi", "status-review", "RFI-0101", "Door frame opening coordination", "Confirm coordination and capture the final response for the door-frame openings.", "High", 10),
+        card("card-long-lead", "topic-general", "sub-general", "type-log", "status-progress", "LOG-0001", "Long lead log", "Maintain the long-lead log and coordinate the current procurement dates.", "Normal", 20),
+        card("card-quality-walk", "topic-general", "sub-quality", "type-action", "status-waiting", "QC-0014", "Quality walk and priority areas", "Track the quality walk, markup, and release of the priority areas.", "High", 30),
+        card("card-safety", "topic-pkg-a", "sub-onboarding-a", "type-submittal", "status-waiting", "SUB-0025", "Safety submittals", "Collect and approve the complete safety-submittal package.", "High", 10),
+        card("card-pco-scope", "topic-pkg-a", "sub-pco-a", "type-pco", "status-progress", "PCO-0044", "Remaining pre-installation scope", "Price and close the remaining scope before installation begins.", "Critical", 20),
+        card("card-rfi-coating", "topic-pkg-a", "sub-rfi-a", "type-rfi", "status-review", "RFI-0102", "Protective coating at walkway", "Obtain the final response and confirm next steps for the walkway coating.", "High", 30),
+        card("card-finish-samples", "topic-pkg-b", "sub-rfi-b", "type-submittal", "status-waiting", "SUB-0017", "Finish samples review", "Complete sample review, approval, and return to the trade partner.", "High", 10),
+        card("card-install-materials", "topic-pkg-b", "sub-proc-b", "type-procurement", "status-todo", "PROC-0009", "Installation materials", "Confirm all installation materials and release them in the project system.", "Normal", 20),
+        card("card-rfi-finish", "topic-pkg-b", "sub-rfi-b", "type-rfi", "status-todo", "RFI-0103", "Finish detail clarification", "Resolve the finish details and any required orientation information.", "Normal", 30),
+        card("card-furniture-log", "topic-pkg-c", "sub-proc-c", "type-log", "status-progress", "LOG-0002", "Furnishings long lead log", "Add furnishings, verify dates, and keep the long-lead log current.", "Normal", 10),
+        card("card-schedule-review", "topic-pkg-c", "sub-proc-c", "type-procurement", "status-review", "SCH-0006", "Partner schedule review", "Coordinate exclusions and return the reviewed partner schedule.", "High", 20),
         card("card-expense", "topic-personal", "sub-personal", "type-action", "status-todo", "", "Submit monthly expense report", "Organize receipts and submit the monthly expense report.", "Normal", 10)
     ];
     const item = (id, cardId, title, dueDate, bicId, completed, rank, parentId = null) => ({
         id, cardId, parentId, title, notes: "", dueDate, bicId, completed, rank, completedAt: completed ? stamp : null
     });
     const checklistItems = [
-        item("i-open-1", "card-openings-rfi", "Confirm priority walls and openings list", addDays(-3), "actor-me", true, 10),
-        item("i-open-2", "card-openings-rfi", "Receive updated response from Gensler", addDays(1), "actor-gensler", false, 20),
-        item("i-open-3", "card-openings-rfi", "Release coordinated direction to field", addDays(2), "actor-me", false, 30),
+        item("i-open-1", "card-rfi-openings", "Confirm priority areas and openings list", addDays(-3), "actor-me", true, 10),
+        item("i-open-2", "card-rfi-openings", "Receive updated response from the design team", addDays(1), "actor-design", false, 20),
+        item("i-open-3", "card-rfi-openings", "Release coordinated direction to field", addDays(2), "actor-me", false, 30),
         item("i-log-1", "card-long-lead", "Update current procurement dates", addDays(0), "actor-me", false, 10),
         item("i-log-2", "card-long-lead", "Review delayed items with trade partners", addDays(3), "actor-me", false, 20),
-        item("i-dfh-1", "card-door-frames", "QC walk schedule", addDays(-1), "actor-osvaldo", true, 10),
-        item("i-dfh-2", "card-door-frames", "Next QC walk", addDays(2), "actor-osvaldo", false, 20),
-        item("i-dfh-3", "card-door-frames", "Receive updated inventory tables", addDays(4), "actor-osvaldo", false, 30),
-        item("i-safe-1", "card-safety", "Receive site-specific safety plan", addDays(-2), "actor-rinaldi", true, 10),
-        item("i-safe-2", "card-safety", "Receive fall-protection plan", addDays(1), "actor-rinaldi", false, 20),
+        item("i-qc-1", "card-quality-walk", "Quality walk schedule", addDays(-1), "actor-field", true, 10),
+        item("i-qc-2", "card-quality-walk", "Next quality walk", addDays(2), "actor-field", false, 20),
+        item("i-qc-3", "card-quality-walk", "Receive updated inventory tables", addDays(4), "actor-field", false, 30),
+        item("i-safe-1", "card-safety", "Receive site-specific safety plan", addDays(-2), "actor-trade", true, 10),
+        item("i-safe-2", "card-safety", "Receive fall-protection plan", addDays(1), "actor-trade", false, 20),
         item("i-safe-3", "card-safety", "Review and upload complete package", addDays(2), "actor-me", false, 30),
-        item("i-pco-1", "card-pco-rau", "Send remaining scope to Nibbi for pricing", addDays(0), "actor-me", false, 10),
-        item("i-pco-2", "card-pco-rau", "Receive pricing", addDays(5), "actor-nibbi", false, 20),
-        item("i-pco-3", "card-pco-rau", "Review COR scope", addDays(7), "actor-me", false, 30),
-        item("i-rfi-1", "card-rfi-traffic", "Issue RFI by email", addDays(-3), "actor-me", true, 10),
-        item("i-rfi-2", "card-rfi-traffic", "Receive final response and next steps", addDays(1), "actor-architect", false, 20),
-        item("i-rfi-3", "card-rfi-traffic", "Confirm added scope", addDays(2), "actor-me", false, 30, "i-rfi-2"),
-        item("i-rfi-4", "card-rfi-traffic", "Update cost log", addDays(4), "actor-me", false, 40),
-        item("i-tile-1", "card-tile-samples", "Deliver samples to Gensler", addDays(-1), "actor-me", true, 10),
-        item("i-tile-2", "card-tile-samples", "Issue reviewed sample submittal", addDays(0), "actor-osvaldo", false, 20),
-        item("i-tile-3", "card-tile-samples", "Return approved sample to Rinaldi", addDays(2), "actor-me", false, 30),
-        item("i-mat-1", "card-install-materials", "Submit installation materials in Procore", addDays(4), "actor-rinaldi", false, 10),
+        item("i-pco-1", "card-pco-scope", "Send remaining scope out for pricing", addDays(0), "actor-me", false, 10),
+        item("i-pco-2", "card-pco-scope", "Receive pricing", addDays(5), "actor-gc", false, 20),
+        item("i-pco-3", "card-pco-scope", "Review change-order scope", addDays(7), "actor-me", false, 30),
+        item("i-coat-1", "card-rfi-coating", "Issue RFI by email", addDays(-3), "actor-me", true, 10),
+        item("i-coat-2", "card-rfi-coating", "Receive final response and next steps", addDays(1), "actor-architect", false, 20),
+        item("i-coat-3", "card-rfi-coating", "Confirm added scope", addDays(2), "actor-me", false, 30, "i-coat-2"),
+        item("i-coat-4", "card-rfi-coating", "Update cost log", addDays(4), "actor-me", false, 40),
+        item("i-sample-1", "card-finish-samples", "Deliver samples to the design team", addDays(-1), "actor-me", true, 10),
+        item("i-sample-2", "card-finish-samples", "Issue reviewed sample submittal", addDays(0), "actor-field", false, 20),
+        item("i-sample-3", "card-finish-samples", "Return approved sample to the trade partner", addDays(2), "actor-me", false, 30),
+        item("i-mat-1", "card-install-materials", "Submit installation materials for review", addDays(4), "actor-trade", false, 10),
         item("i-mat-2", "card-install-materials", "Review complete package", addDays(6), "actor-me", false, 20),
-        item("i-trfi-1", "card-tile-rfi", "Confirm required stone-tile finish details", null, "actor-gensler", false, 10),
-        item("i-ffe-1", "card-furniture-log", "Add furniture to long-lead log", addDays(0), "actor-me", false, 10),
-        item("i-ffe-2", "card-furniture-log", "Receive vendor update", addDays(3), "actor-gensler", false, 20),
-        item("i-tpal-1", "card-tpal", "Send schedule to Gensler for review", addDays(1), "actor-me", false, 10),
-        item("i-tpal-2", "card-tpal", "Receive marked-up schedule", addDays(4), "actor-gensler", false, 20),
+        item("i-finish-1", "card-rfi-finish", "Confirm required finish details", null, "actor-design", false, 10),
+        item("i-furn-1", "card-furniture-log", "Add furnishings to long-lead log", addDays(0), "actor-me", false, 10),
+        item("i-furn-2", "card-furniture-log", "Receive vendor update", addDays(3), "actor-design", false, 20),
+        item("i-sched-1", "card-schedule-review", "Send schedule out for review", addDays(1), "actor-me", false, 10),
+        item("i-sched-2", "card-schedule-review", "Receive marked-up schedule", addDays(4), "actor-design", false, 20),
         item("i-exp-1", "card-expense", "Collect receipts", addDays(2), "actor-me", false, 10),
         item("i-exp-2", "card-expense", "Submit report", addDays(4), "actor-me", false, 20)
     ];
@@ -1237,7 +1240,7 @@ class CreateTaskModal extends Component {
       <div className="modal-header"><div className="modal-title">Create Task</div><button type="button" className="btn btn-ghost btn-icon" onClick=${this.props.onClose} aria-label="Close"><${Icon} name="x" size=${18}/></button></div>
       <div className="modal-body"><div className="form-grid">
         <div className="field full"><label>Task title *</label><input autoFocus className="input title-input" value=${this.state.title} onInput=${(e) => this.setField("title", e.target.value)} placeholder="What are you tracking?" /></div>
-        <div className="field"><label>Reference</label><input className="input" value=${this.state.reference} onInput=${(e) => this.setField("reference", e.target.value)} placeholder="RFI-2690, PCO-084…" /></div>
+        <div className="field"><label>Reference</label><input className="input" value=${this.state.reference} onInput=${(e) => this.setField("reference", e.target.value)} placeholder="RFI-0102, PCO-0044…" /></div>
         <div className="field"><label>Card type</label><select className="select" value=${this.state.cardTypeId} onChange=${(e) => this.setField("cardTypeId", e.target.value)}>${sortRank(data.cardTypes.filter(t => !t.archived)).map(t => html `<option value=${t.id} key=${t.id}>${t.name}</option>`)}</select></div>
         <div className="field full"><label>Short description</label><textarea className="textarea" value=${this.state.description} onInput=${(e) => this.setField("description", e.target.value)} placeholder="A brief summary that is visible on the card." /></div>
         <div className="field"><label>Topic</label><select className="select" value=${this.state.topicId} onChange=${(e) => this.setState({ topicId: e.target.value, subtopicId: "" })}>${sortRank(data.topics.filter(t => !t.archived)).map(t => html `<option value=${t.id} key=${t.id}>${t.name}</option>`)}</select></div>

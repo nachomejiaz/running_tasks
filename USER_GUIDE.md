@@ -24,7 +24,7 @@ A task may sit directly inside a Topic. A Subtopic is optional.
 
 ## 3. Work with Topics and Subtopics
 
-A Topic is a main board container such as `General`, `Personal`, `TP25 - Concrete`, or `Area 14`.
+A Topic is a main board container such as `General`, `Personal`, `Package A - Structure`, or `Area 14`.
 
 A Subtopic is a section inside one Topic, such as `RFI`, `PCO`, `Procurement`, `Onboarding`, or `CM`.
 
@@ -83,8 +83,8 @@ Ball in Court identifies the person, company, team, or role responsible for the 
 Examples:
 
 - `Me`
-- `Rinaldi`
-- `Nibbi`
+- `Trade Partner`
+- `General Contractor`
 - `Architect`
 - `Owner`
 
