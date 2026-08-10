@@ -14,9 +14,12 @@ const { exports } = loadApplication([
   "workspaceMarkdown",
   "workspaceSummary",
   "prepareImportedWorkspace",
-  "validateWorkspaceData"
+  "validateWorkspaceData",
+  "isWaitingCard",
+  "firstActiveStatusId",
+  "ensureDataShape"
 ]);
-const { defaultData, starterData, nextItemFor, nextDateFor, nextBicFor, progressFor, isDoneCard, calendarDaysForMonth, shiftMonth, workspaceCsv, workspaceMarkdown, workspaceSummary, prepareImportedWorkspace, validateWorkspaceData } = exports;
+const { defaultData, starterData, nextItemFor, nextDateFor, nextBicFor, progressFor, isDoneCard, calendarDaysForMonth, shiftMonth, workspaceCsv, workspaceMarkdown, workspaceSummary, prepareImportedWorkspace, validateWorkspaceData, isWaitingCard, firstActiveStatusId, ensureDataShape } = exports;
 for (const [name, value] of Object.entries(exports)) {
   assert.ok(value, `Application test export is missing: ${name}`);
 }
@@ -102,4 +105,40 @@ const future = JSON.parse(JSON.stringify(data));
 future.meta.schemaVersion = 999;
 assert.throws(() => prepareImportedWorkspace(future), /newer than this build supports/);
 
-console.log("PASS next-action, BIC, calendar, archive, import, CSV, and Markdown rules");
+// The Waiting-On queue must follow the status flag, not a hardcoded identifier,
+// so a renamed or rebuilt status set keeps working.
+const waitingData = defaultData();
+const waitingStatus = waitingData.statuses.find(status => status.waiting);
+assert.ok(waitingStatus, "The default status set should flag one waiting status.");
+const ownCard = waitingData.cards.find(card => card.statusId === waitingStatus.id);
+assert.ok(ownCard, "Expected a seeded card in the waiting status.");
+ownCard.fallbackBicId = waitingData.settings.myActorId;
+waitingData.checklistItems.filter(item => item.cardId === ownCard.id).forEach(item => { item.bicId = waitingData.settings.myActorId; });
+assert.equal(isWaitingCard(waitingData, ownCard), true, "A waiting status should count as waiting even when I hold the ball.");
+
+waitingStatus.id = "status-renamed-by-user";
+waitingData.cards.filter(card => card.statusId === waitingStatus.id).forEach(() => {});
+ownCard.statusId = "status-renamed-by-user";
+assert.equal(isWaitingCard(waitingData, ownCard), true, "Renaming the status identifier must not break the queue.");
+
+waitingStatus.waiting = false;
+assert.equal(isWaitingCard(waitingData, ownCard), false, "Clearing the flag should remove the card from the queue.");
+
+// A card whose next action belongs to somebody else is waiting regardless.
+const delegated = waitingData.cards.find(card => card.id !== ownCard.id);
+delegated.fallbackBicId = "actor-architect";
+waitingData.checklistItems.filter(item => item.cardId === delegated.id).forEach(item => { item.bicId = "actor-architect"; });
+assert.equal(isWaitingCard(waitingData, delegated), true);
+
+assert.equal(firstActiveStatusId(defaultData()), "status-todo");
+
+// Schema 1 exports predate the waiting flag and could omit tags entirely.
+const legacy = JSON.parse(JSON.stringify(defaultData()));
+legacy.statuses.forEach(status => { delete status.waiting; });
+delete legacy.cards[0].tags;
+const upgraded = ensureDataShape(legacy);
+assert.equal(upgraded.statuses.find(status => /^waiting/i.test(status.name)).waiting, true, "The waiting flag should be inferred from the status name.");
+assert.deepEqual(Array.from(upgraded.cards[0].tags), [], "A card without tags must not crash search or export.");
+assert.equal(upgraded.meta.schemaVersion >= 1, true);
+
+console.log("PASS next-action, BIC, waiting queue, calendar, archive, import, CSV, and Markdown rules");

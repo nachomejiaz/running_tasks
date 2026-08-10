@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -13,7 +13,79 @@ use std::{
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 
-const SCHEMA_VERSION: i64 = 1;
+#[cfg(test)]
+mod tests;
+
+const SCHEMA_VERSION: i64 = 2;
+
+/// Ordered schema upgrades. Each entry moves a workspace from the previous
+/// version to its own `target`, and every migration runs inside one
+/// transaction with a `Before_Upgrade` snapshot already on disk. Add new
+/// entries here and bump `SCHEMA_VERSION`; never edit a published migration.
+type Migration = fn(&Transaction<'_>) -> Result<(), String>;
+
+fn migrations() -> Vec<(i64, Migration)> {
+    vec![(2, migrate_1_to_2)]
+}
+
+fn column_exists(transaction: &Transaction<'_>, table: &str, column: &str) -> Result<bool, String> {
+    let mut statement = transaction
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(string_error)?;
+    let mut rows = statement.query([]).map_err(string_error)?;
+    while let Some(row) = rows.next().map_err(string_error)? {
+        let name: String = row.get(1).map_err(string_error)?;
+        if name == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Schema 2 replaces the hardcoded `status-waiting` identifier the interface
+/// relied on with a `waiting` flag, so a renamed or rebuilt status set keeps
+/// driving the Waiting-On queue.
+fn migrate_1_to_2(transaction: &Transaction<'_>) -> Result<(), String> {
+    if !column_exists(transaction, "statuses", "waiting")? {
+        transaction
+            .execute_batch("ALTER TABLE statuses ADD COLUMN waiting INTEGER NOT NULL DEFAULT 0;")
+            .map_err(string_error)?;
+    }
+    transaction
+        .execute(
+            "UPDATE statuses SET waiting = 1 WHERE id = 'status-waiting' OR lower(name) = 'waiting'",
+            [],
+        )
+        .map_err(string_error)?;
+    Ok(())
+}
+
+fn stored_schema_version(connection: &Connection) -> Result<Option<i64>, String> {
+    let Some(text) = read_meta(connection, "schemaVersion")? else {
+        return Ok(None);
+    };
+    text.parse::<i64>()
+        .map(Some)
+        .map_err(|_| format!("The workspace schema version '{}' is invalid.", text))
+}
+
+/// Applies every outstanding migration in one transaction. A partially applied
+/// upgrade is never committed: any failure rolls the workspace back untouched.
+fn run_migrations(path: &Path, from_version: i64) -> Result<(), String> {
+    if from_version >= SCHEMA_VERSION {
+        return Ok(());
+    }
+    let mut connection = open_connection(path)?;
+    let transaction = connection.transaction().map_err(string_error)?;
+    for (target, migration) in migrations() {
+        if target > from_version {
+            migration(&transaction)?;
+        }
+    }
+    put_meta(&transaction, "schemaVersion", &SCHEMA_VERSION.to_string())?;
+    transaction.commit().map_err(string_error)?;
+    Ok(())
+}
 
 #[derive(Debug)]
 struct LocalState {
@@ -74,6 +146,8 @@ struct StatusRecord {
     color: String,
     rank: i64,
     terminal: bool,
+    #[serde(default)]
+    waiting: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,7 +330,8 @@ fn initialize_database(path: &Path) -> Result<(), String> {
                 name TEXT NOT NULL,
                 color TEXT NOT NULL,
                 rank INTEGER NOT NULL,
-                terminal INTEGER NOT NULL DEFAULT 0
+                terminal INTEGER NOT NULL DEFAULT 0,
+                waiting INTEGER NOT NULL DEFAULT 0
              );
              CREATE TABLE IF NOT EXISTS actors (
                 id TEXT PRIMARY KEY,
@@ -439,7 +514,9 @@ fn save_data(path: &Path, data: &AppData) -> Result<(), String> {
         )
         .map_err(string_error)?;
 
-    put_meta(&transaction, "schemaVersion", &data.meta.schema_version.to_string())?;
+    // The backend owns this marker. Writing the frontend's copy would let a
+    // stale in-memory value downgrade it and re-run a completed migration.
+    put_meta(&transaction, "schemaVersion", &SCHEMA_VERSION.to_string())?;
     put_meta(&transaction, "appVersion", &data.meta.app_version)?;
     put_meta(&transaction, "createdAt", &data.meta.created_at)?;
     put_meta(&transaction, "updatedAt", &data.meta.updated_at)?;
@@ -487,8 +564,8 @@ fn save_data(path: &Path, data: &AppData) -> Result<(), String> {
     for record in &data.statuses {
         transaction
             .execute(
-                "INSERT INTO statuses(id, name, color, rank, terminal) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![record.id, record.name, record.color, record.rank, record.terminal as i64],
+                "INSERT INTO statuses(id, name, color, rank, terminal, waiting) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![record.id, record.name, record.color, record.rank, record.terminal as i64, record.waiting as i64],
             )
             .map_err(string_error)?;
     }
@@ -603,7 +680,7 @@ fn load_data(path: &Path) -> Result<Option<AppData>, String> {
     }
     if stored_schema < SCHEMA_VERSION {
         return Err(format!(
-            "This workspace uses schema version {stored_schema}, but no verified migration to schema version {SCHEMA_VERSION} is available in this build."
+            "This workspace uses schema version {stored_schema} and has not been migrated to schema version {SCHEMA_VERSION} yet. Reopen Running_Task to apply the upgrade."
         ));
     }
 
@@ -684,7 +761,7 @@ fn load_data(path: &Path) -> Result<Option<AppData>, String> {
 
     let statuses = {
         let mut statement = connection
-            .prepare("SELECT id, name, color, rank, terminal FROM statuses ORDER BY rank")
+            .prepare("SELECT id, name, color, rank, terminal, waiting FROM statuses ORDER BY rank")
             .map_err(string_error)?;
         let rows = statement
             .query_map([], |row| {
@@ -694,6 +771,7 @@ fn load_data(path: &Path) -> Result<Option<AppData>, String> {
                     color: row.get(2)?,
                     rank: row.get(3)?,
                     terminal: row.get::<_, i64>(4)? != 0,
+                    waiting: row.get::<_, i64>(5)? != 0,
                 })
             })
             .map_err(string_error)?;
@@ -910,7 +988,9 @@ fn prune_automatic_backups(state: &LocalState, retention: i64) -> Result<(), Str
 }
 
 fn maybe_create_daily_backup(state: &LocalState, retention: i64) -> Result<(), String> {
-    let today_prefix = format!("Auto_{}_", Utc::now().format("%Y%m%d"));
+    // Local date, matching every date the interface shows. Keying this off UTC
+    // rolled the "daily" backup over mid-afternoon in western time zones.
+    let today_prefix = format!("Auto_{}_", Local::now().format("%Y%m%d"));
     let already_created_today = automatic_backup_paths(state)?.iter().any(|path| {
         path.file_name()
             .and_then(|value| value.to_str())
@@ -924,6 +1004,7 @@ fn maybe_create_daily_backup(state: &LocalState, retention: i64) -> Result<(), S
 
 #[tauri::command]
 fn create_backup(state: State<'_, LocalState>) -> Result<BackupInfo, String> {
+    ensure_database_ready(&state)?;
     create_backup_internal(&state, "Running_Task")
 }
 
@@ -972,16 +1053,11 @@ fn preflight_existing_schema(path: &Path) -> Result<(), String> {
         )
         .map_err(string_error)?;
     if !has_meta { return Ok(()); }
-    let Some(schema_text) = read_meta(&connection, "schemaVersion")? else { return Ok(()); };
-    let stored_schema = schema_text
-        .parse::<i64>()
-        .map_err(|_| format!("The workspace schema version '{}' is invalid.", schema_text))?;
-    if stored_schema != SCHEMA_VERSION {
-        return Err(if stored_schema > SCHEMA_VERSION {
-            format!("The database schema ({stored_schema}) is newer than this application supports ({SCHEMA_VERSION}).")
-        } else {
-            format!("The database schema ({stored_schema}) requires a verified migration before it can be opened by schema {SCHEMA_VERSION}.")
-        });
+    let Some(stored_schema) = stored_schema_version(&connection)? else { return Ok(()); };
+    if stored_schema > SCHEMA_VERSION {
+        return Err(format!(
+            "The database schema ({stored_schema}) is newer than this application supports ({SCHEMA_VERSION})."
+        ));
     }
     Ok(())
 }
@@ -989,20 +1065,12 @@ fn preflight_existing_schema(path: &Path) -> Result<(), String> {
 fn prepare_database_for_current_app(state: &LocalState) -> Result<(), String> {
     verify_database(&state.db_path)?;
     let connection = open_connection(&state.db_path)?;
-    let Some(schema_text) = read_meta(&connection, "schemaVersion")? else {
+    let Some(stored_schema) = stored_schema_version(&connection)? else {
         return Ok(());
     };
-    let stored_schema = schema_text
-        .parse::<i64>()
-        .map_err(|_| format!("The workspace schema version '{}' is invalid.", schema_text))?;
     if stored_schema > SCHEMA_VERSION {
         return Err(format!(
             "The database schema ({stored_schema}) is newer than this application supports ({SCHEMA_VERSION})."
-        ));
-    }
-    if stored_schema < SCHEMA_VERSION {
-        return Err(format!(
-            "The database schema ({stored_schema}) requires a verified migration before it can be opened by schema {SCHEMA_VERSION}."
         ));
     }
 
@@ -1010,8 +1078,16 @@ fn prepare_database_for_current_app(state: &LocalState) -> Result<(), String> {
     let current_version = env!("CARGO_PKG_VERSION");
     drop(connection);
 
-    if previous_version.as_deref() != Some(current_version) {
+    // Snapshot before either an application-version change or a schema
+    // upgrade, so a failed migration can always be rolled back by hand.
+    let needs_migration = stored_schema < SCHEMA_VERSION;
+    if needs_migration || previous_version.as_deref() != Some(current_version) {
         create_backup_internal(state, "Before_Upgrade")?;
+    }
+    if needs_migration {
+        run_migrations(&state.db_path, stored_schema)?;
+    }
+    if previous_version.as_deref() != Some(current_version) {
         let connection = open_connection(&state.db_path)?;
         connection
             .execute(
@@ -1067,6 +1143,7 @@ fn delete_backup(state: State<'_, LocalState>, backup_id: String) -> Result<(), 
 
 #[tauri::command]
 fn export_json(state: State<'_, LocalState>) -> Result<String, String> {
+    ensure_database_ready(&state)?;
     let data = load_data(&state.db_path)?.ok_or_else(|| "There is no workspace data to export yet.".to_string())?;
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S_%3f");
     let path = state.exports_dir.join(format!("Running_Task_Export_{timestamp}.json"));
@@ -1147,6 +1224,7 @@ fn checklist_depth(data: &AppData, item: &ChecklistItem) -> usize {
 
 #[tauri::command]
 fn export_csv(state: State<'_, LocalState>) -> Result<String, String> {
+    ensure_database_ready(&state)?;
     let data = load_data(&state.db_path)?.ok_or_else(|| "There is no workspace data to export yet.".to_string())?;
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S_%3f");
     let path = state.exports_dir.join(format!("Running_Task_Export_{timestamp}.csv"));
@@ -1197,6 +1275,7 @@ fn export_csv(state: State<'_, LocalState>) -> Result<String, String> {
 
 #[tauri::command]
 fn export_markdown(state: State<'_, LocalState>) -> Result<String, String> {
+    ensure_database_ready(&state)?;
     let data = load_data(&state.db_path)?.ok_or_else(|| "There is no workspace data to export yet.".to_string())?;
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S_%3f");
     let path = state.exports_dir.join(format!("Running_Task_Export_{timestamp}.md"));
@@ -1248,6 +1327,22 @@ fn export_markdown(state: State<'_, LocalState>) -> Result<String, String> {
     }
     fs::write(&path, output.as_bytes()).map_err(string_error)?;
     Ok(path.to_string_lossy().to_string())
+}
+
+/// Closes the main window from the Rust side.
+///
+/// Registering a JS `onCloseRequested` listener makes Tauri suppress the native
+/// close (`api.prevent_close()`), which hands the decision to the webview. The
+/// webview can only complete it through `core:window` commands that
+/// `core:default` does not grant, so the frontend routes its close through this
+/// application command instead. `destroy` is deliberate: `close` would emit
+/// another CloseRequested event and re-enter the same guard.
+#[tauri::command]
+fn close_main_window(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "The main window is no longer available.".to_string())?;
+    window.destroy().map_err(string_error)
 }
 
 #[tauri::command]
@@ -1340,6 +1435,7 @@ pub fn run() {
             export_markdown,
             get_storage_info,
             open_data_folder,
+            close_main_window,
             set_autostart,
             get_autostart
         ])

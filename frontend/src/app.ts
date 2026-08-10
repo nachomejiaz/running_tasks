@@ -5,9 +5,11 @@ declare const htm: any;
 const html = htm.bind(React.createElement);
 const Component = React.Component;
 const APP_VERSION = "1.0.0-rc.1";
-const APP_SCHEMA_VERSION = 1;
+const APP_SCHEMA_VERSION = 2;
 const STORAGE_KEY = "running_task.workspace.v1";
 const BACKUP_KEY = "running_task.browser_backups.v1";
+const UNDO_COALESCE_MS = 4000;
+const UNDO_DEPTH = 20;
 
 interface MetaInfo {
   schemaVersion: number;
@@ -18,7 +20,7 @@ interface MetaInfo {
 interface Topic { id: string; name: string; color: string; icon: string; rank: number; archived: boolean; }
 interface Subtopic { id: string; topicId: string; name: string; color: string; rank: number; archived: boolean; }
 interface CardType { id: string; name: string; color: string; icon: string; rank: number; archived: boolean; }
-interface Status { id: string; name: string; color: string; rank: number; terminal: boolean; }
+interface Status { id: string; name: string; color: string; rank: number; terminal: boolean; waiting: boolean; }
 interface Actor { id: string; name: string; organization: string; color: string; rank: number; archived: boolean; }
 interface ChecklistItem {
   id: string;
@@ -222,6 +224,14 @@ function dueClass(value: string | null): string {
   if (offset === 0) return "today";
   return "";
 }
+function isWaitingCard(data: AppData, card: Card): boolean {
+  const bic = nextBicFor(data, card);
+  if (bic && bic.id !== data.settings.myActorId) return true;
+  return !!statusById(data, card.statusId)?.waiting;
+}
+function firstActiveStatusId(data: AppData): string {
+  return sortRank(data.statuses.filter(s => !s.terminal))[0]?.id || data.statuses[0]?.id || "";
+}
 function isDoneCard(data: AppData, card: Card): boolean {
   const status = statusById(data, card.statusId);
   return !!(status && status.terminal) || card.isArchived;
@@ -390,11 +400,11 @@ function prepareImportedWorkspace(raw: any): { data: AppData; summary: ImportSum
 function defaultData(): AppData {
   const stamp = nowIso();
   const statuses: Status[] = [
-    { id: "status-todo", name: "To Do", color: "#6b778c", rank: 10, terminal: false },
-    { id: "status-progress", name: "In Progress", color: "#0c66e4", rank: 20, terminal: false },
-    { id: "status-waiting", name: "Waiting", color: "#b65c02", rank: 30, terminal: false },
-    { id: "status-review", name: "Review", color: "#6e5dc6", rank: 40, terminal: false },
-    { id: "status-done", name: "Done", color: "#1f845a", rank: 50, terminal: true }
+    { id: "status-todo", name: "To Do", color: "#6b778c", rank: 10, terminal: false, waiting: false },
+    { id: "status-progress", name: "In Progress", color: "#0c66e4", rank: 20, terminal: false, waiting: false },
+    { id: "status-waiting", name: "Waiting", color: "#b65c02", rank: 30, terminal: false, waiting: true },
+    { id: "status-review", name: "Review", color: "#6e5dc6", rank: 40, terminal: false, waiting: false },
+    { id: "status-done", name: "Done", color: "#1f845a", rank: 50, terminal: true, waiting: false }
   ];
   // Demo content only. Every name, reference, and organization here is a
   // neutral placeholder: this dataset ships in the public browser preview and
@@ -530,6 +540,9 @@ function ensureDataShape(raw: any): AppData {
   data.subtopics = Array.isArray(data.subtopics) ? data.subtopics : [];
   data.cardTypes = Array.isArray(data.cardTypes) ? data.cardTypes : fallback.cardTypes;
   data.statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : fallback.statuses;
+  // Schema 1 workspaces predate the waiting flag; infer it from the name once.
+  data.statuses.forEach(status => { if (typeof status.waiting !== "boolean") status.waiting = /^waiting/i.test(status.name || ""); });
+  data.cards.forEach(card => { if (!Array.isArray(card.tags)) card.tags = []; });
   data.actors = Array.isArray(data.actors) && data.actors.length ? data.actors : fallback.actors;
   data.checklistItems = Array.isArray(data.checklistItems) ? data.checklistItems : [];
   data.savedViews = Array.isArray(data.savedViews) ? data.savedViews : [];
@@ -604,6 +617,8 @@ class SerializedSaveQueue<T> {
 
 class DataProvider {
   desktop = hasTauri();
+  /** False when load() had to synthesize a starter or demo workspace. */
+  loadedExistingWorkspace = false;
   browserStorageAvailable = true;
   memoryData: AppData | null = null;
   memoryBackups: any[] = [];
@@ -628,11 +643,13 @@ class DataProvider {
   async load(): Promise<AppData> {
     if (this.desktop) {
       const raw = await tauriInvoke<AppData | null>("get_app_data");
+      this.loadedExistingWorkspace = !!raw;
       return raw ? ensureDataShape(raw) : starterData();
     }
     if (!this.browserStorageAvailable && this.memoryData) return deepClone(this.memoryData);
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
+      this.loadedExistingWorkspace = !!raw;
       const data = raw ? ensureDataShape(JSON.parse(raw)) : defaultData();
       this.memoryData = deepClone(data);
       return data;
@@ -841,7 +858,7 @@ function Sidebar(props: any): any {
       if (scope === "today") return offset === 0;
       if (scope === "overdue") return offset !== null && offset < 0;
       if (scope === "my-ball") return !!bic && bic.id === data.settings.myActorId;
-      if (scope === "waiting") return (!!bic && bic.id !== data.settings.myActorId) || card.statusId === "status-waiting";
+      if (scope === "waiting") return isWaitingCard(data, card);
       if (scope === "no-date") return !date;
       return true;
     }).length;
@@ -1081,7 +1098,7 @@ function FlowView(props: any): any {
       ${cards.length ? html`<div className="flow-list">${cards.map(card => {
         const open = openChecklistFor(data, card.id).slice().sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999") || a.rank - b.rank);
         const topic = topicById(data, card.topicId); const sub = subtopicById(data, card.subtopicId);
-        return html`<div key=${card.id} className="flow-row" onClick=${() => props.onOpen(card.id)} role="button" tabIndex="0">
+        return html`<div key=${card.id} className="flow-row" onClick=${() => props.onOpen(card.id)} onKeyDown=${activateOnKey(() => props.onOpen(card.id))} role="button" tabIndex="0">
           <div><div className="flow-card-title">${card.reference ? `${card.reference} — ` : ""}${card.title}</div><div className="flow-card-meta"><span className="topic-dot" style=${{ background: topic?.color || "#6b778c", display: "inline-block", marginRight: "6px" }}></span>${topic?.name || "No topic"}${sub ? ` · ${sub.name}` : ""}</div></div>
           ${open.length ? html`<div className="flow-track">${open.map((item, index) => html`<div className="flow-node-wrap" key=${item.id}><div className=${`flow-node ${index === 0 ? "current" : ""} ${dayOffset(item.dueDate) !== null && (dayOffset(item.dueDate) as number) < 0 ? "overdue" : ""}`}><div className="flow-node-date"><span>${item.dueDate ? formatDate(item.dueDate, true) : "No date"}</span><${ActorPill} actor=${actorById(data, item.bicId)} compact=${true}/></div><div className="flow-node-title">${item.title}</div></div>${index < open.length - 1 ? html`<div className="flow-connector"></div>` : null}</div>`)}</div>` : html`<div className="flow-empty">No open checklist steps</div>`}
         </div>`;
@@ -1102,7 +1119,7 @@ function DashboardView(props: any): any {
   const overdue = cards.filter(c => { const d = dayOffset(nextDateFor(data, c)); return d !== null && d < 0; });
   const today = cards.filter(c => dayOffset(nextDateFor(data, c)) === 0);
   const mine = cards.filter(c => nextBicFor(data, c)?.id === data.settings.myActorId);
-  const waiting = cards.filter(c => { const a = nextBicFor(data, c); return (!!a && a.id !== data.settings.myActorId) || c.statusId === "status-waiting"; });
+  const waiting = cards.filter(c => isWaitingCard(data, c));
   const noDate = cards.filter(c => !nextDateFor(data, c));
   const upcoming = cards.filter(c => { const d = dayOffset(nextDateFor(data, c)); return d !== null && d >= 0 && d <= 7; }).sort((a,b) => String(nextDateFor(data,a)).localeCompare(String(nextDateFor(data,b))));
   const metrics = [
@@ -1115,7 +1132,7 @@ function DashboardView(props: any): any {
   return html`<div className="view-contents"><${PageHeader} eyebrow="Personal operations" title="Dashboard" subtitle="What needs to happen next, by when, and whose ball is it?">
     <button className="btn btn-secondary" onClick=${() => props.onNavigate("list", null, "my-ball")}><${Icon} name="user" size=${16}/>Open My Ball</button>
   <//><div className="content-scroll">
-    <div className="metric-grid">${metrics.map(m => html`<div className="metric-card" key=${m.label} onClick=${() => props.onNavigate("list", null, m.scope)} role="button" tabIndex="0"><div className="metric-label">${m.label}</div><div className="metric-value">${m.value}</div><div className="metric-helper">${m.helper}</div></div>`)}</div>
+    <div className="metric-grid">${metrics.map(m => html`<div className="metric-card" key=${m.label} onClick=${() => props.onNavigate("list", null, m.scope)} onKeyDown=${activateOnKey(() => props.onNavigate("list", null, m.scope))} role="button" tabIndex="0"><div className="metric-label">${m.label}</div><div className="metric-value">${m.value}</div><div className="metric-helper">${m.helper}</div></div>`)}</div>
     <div className="dashboard-grid">
       <${DashboardPanel} title="My next actions" icon="user" cards=${mine.sort((a,b) => String(nextDateFor(data,a)).localeCompare(String(nextDateFor(data,b))))} data=${data} onOpen=${props.onOpen}/>
       <${DashboardPanel} title="Waiting on others" icon="clock" cards=${waiting} data=${data} onOpen=${props.onOpen}/>
@@ -1123,6 +1140,14 @@ function DashboardView(props: any): any {
       <section className="panel"><div className="panel-header"><${Icon} name="layers" size=${17}/><div className="panel-title">Topic workload</div><div className="panel-count">${cards.length} active</div></div><div className="panel-body">${sortRank(data.topics.filter(t => !t.archived)).map(topic => { const count = cards.filter(c => c.topicId === topic.id).length; return html`<div className="topic-health" key=${topic.id}><div><div className="topic-health-name"><span className="topic-dot" style=${{ background: topic.color }}></span>${topic.name}</div><div className="progress-track" style=${{ marginTop: "7px" }}><div className="progress-fill" style=${{ width: `${cards.length ? Math.max(3, count / cards.length * 100) : 0}%`, background: topic.color }}></div></div></div><div className="topic-health-count">${count} tasks</div></div>`; })}</div></section>
     </div>
   </div></div>`;
+}
+
+function activateOnKey(handler: () => void): any {
+  return (event: any) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    handler();
+  };
 }
 
 function EmptyState(props: any): any {
@@ -1189,6 +1214,17 @@ function SettingsView(props: any): any {
 
       <section className="settings-card"><div className="settings-card-header"><div className="settings-card-title">Card Types</div><div className="settings-card-desc">Reusable classification independent of Topic and Subtopic.</div></div><div className="entity-toolbar"><span>${typeRows.length} active types</span><button className="btn btn-primary btn-small" onClick=${() => props.onEntityDialog("type")}><${Icon} name="plus" size=${14}/>Add Type</button></div><div className="entity-list">${typeRows.map(type => html`<div className="entity-row" key=${type.id}><span className="topic-dot" style=${{ background: type.color }}></span><div className="entity-name">${type.name}</div><button className="btn btn-ghost btn-icon btn-small" title="Edit" onClick=${() => props.onEntityDialog("type", null, type)}><${Icon} name="edit" size=${14}/></button></div>`)}</div></section>
 
+      ${(() => {
+        const hidden = [
+          ...data.topics.filter(t => t.archived).map(item => ({ kind: "topic", label: "Topic", item })),
+          ...data.subtopics.filter(t => t.archived).map(item => ({ kind: "subtopic", label: "Subtopic", item })),
+          ...data.cardTypes.filter(t => t.archived).map(item => ({ kind: "type", label: "Card Type", item })),
+          ...data.actors.filter(a => a.archived).map(item => ({ kind: "actor", label: "BIC actor", item }))
+        ];
+        if (!hidden.length) return null;
+        return html`<section className="settings-card"><div className="settings-card-header"><div className="settings-card-title">Hidden items</div><div className="settings-card-desc">Still referenced by existing tasks, so they cannot be deleted. They stay out of menus and columns until restored.</div></div><div className="entity-list">${hidden.map(entry => html`<div className="entity-row" key=${entry.item.id}><span className="topic-dot" style=${{ background: entry.item.color }}></span><div className="entity-name"><div>${entry.item.name}</div><div className="entity-meta">${entry.label}</div></div><button className="btn btn-secondary btn-small" onClick=${() => props.onRestoreEntity(entry.kind, entry.item)}><${Icon} name="undo" size=${14}/>Restore</button></div>`)}</div></section>`;
+      })()}
+
       <section className="settings-card"><div className="settings-card-header"><div className="settings-card-title">About and installation</div><div className="settings-card-desc">Running_Task stores its production data locally and makes no network requests.</div></div><div className="setting-row"><div className="setting-copy"><div className="setting-label">Application version</div><div className="setting-help">Workspace schema ${data.meta.schemaVersion}</div></div><strong>${APP_VERSION}</strong></div><div className="setting-row"><div className="setting-copy"><div className="setting-label">Storage mode</div><div className="setting-help">${props.storageInfo?.mode || "Local storage information is loading."}</div></div><strong>${props.desktop ? "SQLite desktop" : "Browser preview"}</strong></div><div className="setting-row"><div className="setting-copy"><div className="setting-label">Windows installation target</div><div className="setting-help">The prebuilt setup is configured for the current Windows user and does not request Administrator rights. Company application-control rules may still require IT approval.</div></div><strong>Current user</strong></div><div className="setting-row"><div className="setting-copy"><div className="setting-label">Portable build</div><div className="setting-help">The GitHub workflow also creates a no-install ZIP. Keep its folder in a permanent location before enabling automatic startup.</div></div><strong>Supported</strong></div></section>
     </div></div></div>`;
 }
@@ -1199,7 +1235,7 @@ class CreateTaskModal extends Component {
     super(props);
     const data: AppData = props.data;
     const firstTopic = props.defaultTopicId || sortRank(data.topics.filter(t => !t.archived))[0]?.id || "";
-    const defaultStatus = props.defaultStatusId || "status-todo";
+    const defaultStatus = props.defaultStatusId || firstActiveStatusId(data);
     const defaultDate = props.defaultDate || "";
     this.state = { title: "", reference: "", description: "", topicId: firstTopic, subtopicId: "", cardTypeId: "type-action", statusId: defaultStatus, priority: "Normal", targetDate: defaultDate, fallbackBicId: data.settings.myActorId, nextTitle: "", nextDueDate: defaultDate, nextBicId: data.settings.myActorId };
   }
@@ -1237,13 +1273,13 @@ class EntityDialog extends Component {
   constructor(props: any) {
     super(props);
     const item = props.item || {};
-    this.state = { name: item.name || "", color: item.color || "#0c66e4", organization: item.organization || "" };
+    this.state = { name: item.name || "", color: item.color || "#0c66e4", organization: item.organization || "", waiting: !!item.waiting };
   }
   submit = (e: any) => { e.preventDefault(); if (this.state.name.trim()) this.props.onSave(this.state); };
   render(): any {
     const labels: any = { topic: "Topic", subtopic: "Subtopic", actor: "BIC Actor", type: "Card Type", status: "Status" };
     const label = labels[this.props.kind] || "Item";
-    return html`<div className="modal-backdrop" onMouseDown=${(e: any) => { if (e.target === e.currentTarget) this.props.onClose(); }}><form className="modal small" onSubmit=${this.submit}><div className="modal-header"><div className="modal-title">${this.props.item ? `Edit ${label}` : `Add ${label}`}</div><button type="button" className="btn btn-ghost btn-icon" onClick=${this.props.onClose}><${Icon} name="x" size=${18}/></button></div><div className="modal-body"><div className="form-grid"><div className="field full"><label>Name *</label><input autoFocus className="input" value=${this.state.name} onInput=${(e: any) => this.setState({ name: e.target.value })} /></div>${this.props.kind === "actor" ? html`<div className="field full"><label>Organization or role</label><input className="input" value=${this.state.organization} onInput=${(e: any) => this.setState({ organization: e.target.value })} /></div>` : null}<div className="field full"><label>Color</label><div style=${{ display: "flex", gap: "8px", alignItems: "center" }}><input type="color" value=${this.state.color} onChange=${(e: any) => this.setState({ color: e.target.value })} style=${{ width: "54px", height: "37px", border: "1px solid var(--border)", borderRadius: "7px", background: "var(--surface)" }} /><input className="input" value=${this.state.color} onInput=${(e: any) => this.setState({ color: e.target.value })} /></div></div></div></div><div className="modal-footer"><button type="button" className="btn btn-secondary" onClick=${this.props.onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled=${!this.state.name.trim()}>Save</button></div></form></div>`;
+    return html`<div className="modal-backdrop" onMouseDown=${(e: any) => { if (e.target === e.currentTarget) this.props.onClose(); }}><form className="modal small" onSubmit=${this.submit}><div className="modal-header"><div className="modal-title">${this.props.item ? `Edit ${label}` : `Add ${label}`}</div><button type="button" className="btn btn-ghost btn-icon" onClick=${this.props.onClose}><${Icon} name="x" size=${18}/></button></div><div className="modal-body"><div className="form-grid"><div className="field full"><label>Name *</label><input autoFocus className="input" value=${this.state.name} onInput=${(e: any) => this.setState({ name: e.target.value })} /></div>${this.props.kind === "actor" ? html`<div className="field full"><label>Organization or role</label><input className="input" value=${this.state.organization} onInput=${(e: any) => this.setState({ organization: e.target.value })} /></div>` : null}<div className="field full"><label>Color</label><div style=${{ display: "flex", gap: "8px", alignItems: "center" }}><input type="color" value=${this.state.color} onChange=${(e: any) => this.setState({ color: e.target.value })} style=${{ width: "54px", height: "37px", border: "1px solid var(--border)", borderRadius: "7px", background: "var(--surface)" }} /><input className="input" value=${this.state.color} onInput=${(e: any) => this.setState({ color: e.target.value })} /></div></div>${this.props.kind === "status" ? html`<div className="field full"><label>Queue behavior</label><div className="setting-row" style=${{ padding: 0, border: "none" }}><div className="setting-copy"><div className="setting-help">Tasks in this status count as waiting on someone else, even when you hold the Ball in Court.</div></div><button type="button" className=${`switch ${this.state.waiting ? "on" : ""}`} onClick=${() => this.setState({ waiting: !this.state.waiting })} aria-label="Toggle waiting status"></button></div></div>` : null}</div></div><div className="modal-footer">${this.props.item && this.props.onRemove ? html`<button type="button" className="btn btn-danger btn-small" onClick=${() => this.props.onRemove(this.props.kind, this.props.item)}><${Icon} name="trash" size=${14}/>Delete</button>` : null}<div className="filter-spacer"></div><button type="button" className="btn btn-secondary" onClick=${this.props.onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled=${!this.state.name.trim()}>Save</button></div></form></div>`;
   }
 }
 
@@ -1255,6 +1291,45 @@ function FilterPopover(props: any): any {
     <div className="field"><label>Next date</label><select className="select" value=${f.due} onChange=${(e: any) => props.onFilter("due", e.target.value)}><option value="all">Any date</option><option value="overdue">Overdue</option><option value="today">Today</option><option value="7days">Next 7 days</option><option value="30days">Next 30 days</option><option value="nodate">No date</option></select></div>
     <div className="field"><label>Priority</label><select className="select" value=${f.priority} onChange=${(e: any) => props.onFilter("priority", e.target.value)}><option value="">Any priority</option>${["Low", "Normal", "High", "Critical"].map(p => html`<option value=${p} key=${p}>${p}</option>`)}</select></div>
   </div><div className="filter-popover-actions"><button className="btn btn-ghost btn-small" onClick=${props.onClear}>Clear</button><button className="btn btn-secondary btn-small" onClick=${props.onSaveView}><${Icon} name="save" size=${14}/>Save view</button></div></div>`;
+}
+
+/**
+ * In-app replacement for window.confirm / window.prompt.
+ *
+ * WebView2 script dialogs are not guaranteed to be available under Tauri. When
+ * they are suppressed, confirm() silently returns false and prompt() returns
+ * null, which would quietly swallow a destructive action or a saved view.
+ */
+class PromptModal extends Component {
+  state: any;
+  constructor(props: any) {
+    super(props);
+    this.state = { value: props.defaultValue || "" };
+  }
+  submit = (event: any) => {
+    event.preventDefault();
+    if (this.props.input && !this.state.value.trim()) return;
+    this.props.onConfirm(this.props.input ? this.state.value.trim() : undefined);
+  };
+  render(): any {
+    const danger = !!this.props.danger;
+    return html`<div className="modal-backdrop" onMouseDown=${(e: any) => { if (e.target === e.currentTarget) this.props.onCancel(); }}>
+      <form className="modal small" onSubmit=${this.submit}>
+        <div className="modal-header"><div className="modal-title">${this.props.title}</div>
+          <button type="button" className="btn btn-ghost btn-icon" onClick=${this.props.onCancel} aria-label="Cancel"><${Icon} name="x" size=${18}/></button>
+        </div>
+        <div className="modal-body">
+          <div className="setting-help" style=${{ fontSize: "13px", lineHeight: 1.5 }}>${this.props.body}</div>
+          ${this.props.input ? html`<div className="field full" style=${{ marginTop: "12px" }}><label>${this.props.inputLabel || "Name"}</label>
+            <input autoFocus className="input" value=${this.state.value} onInput=${(e: any) => this.setState({ value: e.target.value })} /></div>` : null}
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-secondary" onClick=${this.props.onCancel}>Cancel</button>
+          <button type="submit" className=${`btn ${danger ? "btn-danger" : "btn-primary"}`} disabled=${this.props.input && !this.state.value.trim()}>${this.props.confirmLabel || "Confirm"}</button>
+        </div>
+      </form>
+    </div>`;
+  }
 }
 
 function ImportWorkspaceModal(props: any): any {
@@ -1324,7 +1399,9 @@ function CardDrawer(props: any): any {
       <div className="section-title"><${Icon} name="list" size=${15}/>Notes</div><textarea className="textarea" style=${{ minHeight: "130px" }} value=${card.notes} onInput=${(e: any) => update("notes", e.target.value)} placeholder="Longer notes, meeting details, context, or decisions…" />
       <div className="section-title"><${Icon} name="clock" size=${15}/>Local record</div><div className="activity-note">Created ${formatTimestamp(card.createdAt)} · Last changed ${formatTimestamp(card.updatedAt)}. A detailed activity log will be added in a later milestone.</div>
     </div>
-    <div className="drawer-footer"><div className="archive-actions"><button className="btn btn-danger btn-small" onClick=${() => props.onArchive(card.id)}><${Icon} name="archive" size=${14}/>Archive</button></div><div className="archive-actions"><button className="btn btn-secondary" onClick=${props.onClose}>Close</button><button className="btn btn-success" onClick=${() => props.onDone(card.id)}><${Icon} name="check" size=${16}/>Mark Done</button></div></div>
+    <div className="drawer-footer">${card.isArchived
+      ? html`<div className="archive-actions"><span className="entity-meta">${card.archiveReason === "completed" ? "Completed" : "Archived"}${card.completedAt ? ` · ${formatTimestamp(card.completedAt)}` : ""}</span></div><div className="archive-actions"><button className="btn btn-secondary" onClick=${props.onClose}>Close</button><button className="btn btn-primary" onClick=${() => props.onRestoreCard(card.id)}><${Icon} name="undo" size=${16}/>Restore to active</button></div>`
+      : html`<div className="archive-actions"><button className="btn btn-danger btn-small" onClick=${() => props.onArchive(card.id)}><${Icon} name="archive" size=${14}/>Archive</button></div><div className="archive-actions"><button className="btn btn-secondary" onClick=${props.onClose}>Close</button><button className="btn btn-success" onClick=${() => props.onDone(card.id)}><${Icon} name="check" size=${16}/>Mark Done</button></div>`}</div>
   </aside></div>`;
 }
 
@@ -1372,10 +1449,10 @@ interface RootState {
   importCandidate: ImportCandidate | null;
   importBusy: boolean;
   entityDialog: null | { kind: string; parentId?: string | null; item?: any };
+  prompt: null | { title: string; body: string; confirmLabel?: string; danger?: boolean; input?: boolean; inputLabel?: string; defaultValue?: string; onConfirm: (value?: string) => void };
   toast: null | { message: string; type: "success" | "error" };
   saveState: "saved" | "saving" | "error";
-  undoSnapshot: AppData | null;
-  undoLabel: string;
+  undoStack: Array<{ data: AppData; label: string }>;
 }
 
 class RunningTaskApp extends Component {
@@ -1387,12 +1464,14 @@ class RunningTaskApp extends Component {
   allowDesktopClose = false;
   mounted = false;
   suppressNextAutosave = false;
+  lastUndoKey: string | null = null;
+  lastUndoAt = 0;
   state: RootState = {
     ready: false, data: null, loadError: null, route: "dashboard", selectedTopicId: null, scope: "", search: "",
     filters: { statusId: "", bicId: "", due: "all", priority: "" }, filtersOpen: false,
     createOpen: false, createDefaults: {}, drawerCardId: null, calendarMonth: currentMonthKey(), expanded: new Set<string>(),
     draggingId: null, dragOverId: null, backups: [], storageInfo: null, backupBusy: false,
-    importCandidate: null, importBusy: false, entityDialog: null, toast: null, saveState: "saved", undoSnapshot: null, undoLabel: ""
+    importCandidate: null, importBusy: false, entityDialog: null, prompt: null, toast: null, saveState: "saved", undoStack: []
   };
 
   async componentDidMount(): Promise<void> {
@@ -1423,6 +1502,9 @@ class RunningTaskApp extends Component {
     try {
       const data = await this.provider.load();
       const storageInfo = await this.provider.storageInfo();
+      // A workspace that came back from disk is already persisted. Only a
+      // freshly synthesized starter workspace still needs its first save.
+      this.suppressNextAutosave = this.provider.loadedExistingWorkspace;
       this.applyTheme(data.settings.theme);
       this.setState({ data, storageInfo, ready: true, loadError: null, saveState: "saved" });
       if (this.provider.desktop && data.settings.autostart) {
@@ -1446,6 +1528,15 @@ class RunningTaskApp extends Component {
       }
     }
   };
+  /**
+   * Owns the desktop close decision end to end.
+   *
+   * Registering this listener makes Tauri suppress the native close, so the
+   * window can only shut down if we finish the job ourselves. preventDefault is
+   * therefore unconditional: without it Tauri's own wrapper calls
+   * `window.destroy()`, a core:window command the app's capability does not
+   * grant, and the rejection would leave the window stuck open.
+   */
   setupDesktopCloseGuard = async (): Promise<void> => {
     if (!this.provider.desktop) return;
     const windowApi = tauriWindow.__TAURI__?.window;
@@ -1453,16 +1544,31 @@ class RunningTaskApp extends Component {
     try {
       const appWindow = windowApi.getCurrentWindow();
       this.closeUnlisten = await appWindow.onCloseRequested(async (event: any) => {
-        if (this.allowDesktopClose || !this.saveQueue.hasWork()) return;
         event.preventDefault();
-        const saved = await this.flushPendingSave(false);
-        if (saved) {
-          this.allowDesktopClose = true;
-          await appWindow.close();
+        if (!this.allowDesktopClose && this.saveQueue.hasWork()) {
+          const saved = await this.flushPendingSave(false);
+          // Leave the window open so the failure and its Retry stay reachable.
+          if (!saved) return;
         }
+        this.allowDesktopClose = true;
+        await this.closeDesktopWindow(appWindow);
       });
     } catch (error) {
       console.warn("Running_Task could not register its close-save guard.", error);
+    }
+  };
+  closeDesktopWindow = async (appWindow: any): Promise<void> => {
+    try {
+      await tauriInvoke("close_main_window");
+      return;
+    } catch (error) {
+      console.warn("Running_Task could not close through the backend command.", error);
+    }
+    try {
+      await appWindow.destroy();
+    } catch (error) {
+      console.error("Running_Task could not close its window.", error);
+      this.showToast("Running_Task could not close its window. Your work is saved; end the process from Task Manager.", "error");
     }
   };
   onBeforeUnload = (event: BeforeUnloadEvent): void => {
@@ -1478,7 +1584,8 @@ class RunningTaskApp extends Component {
   }
   onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === "Escape") {
-      if (this.state.filtersOpen) this.setState({ filtersOpen: false });
+      if (this.state.prompt) this.cancelPrompt();
+      else if (this.state.filtersOpen) this.setState({ filtersOpen: false });
       else if (this.state.importCandidate) this.setState({ importCandidate: null });
       else if (this.state.entityDialog) this.setState({ entityDialog: null });
       else if (this.state.createOpen) this.setState({ createOpen: false });
@@ -1493,12 +1600,15 @@ class RunningTaskApp extends Component {
       event.preventDefault(); (document.getElementById("global-search") as HTMLInputElement | null)?.focus(); return;
     }
     if (event.key === "/") { event.preventDefault(); (document.getElementById("global-search") as HTMLInputElement | null)?.focus(); return; }
-    if (event.key.toLowerCase() === "n") { event.preventDefault(); this.openCreate(); }
+    const overlayOpen = this.state.createOpen || this.state.drawerCardId || this.state.entityDialog || this.state.importCandidate || this.state.prompt;
+    if (!overlayOpen && event.key.toLowerCase() === "n") { event.preventDefault(); this.openCreate(); }
   };
   scheduleSave(): void {
     if (!this.state.data || this.state.loadError) return;
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveQueue.enqueue(deepClone(this.state.data));
+    // state.data is replaced, never mutated in place, so the queue can hold the
+    // reference directly. See updateData for the invariant this depends on.
+    this.saveQueue.enqueue(this.state.data);
     if (this.state.saveState !== "saving") this.setState({ saveState: "saving" });
     this.saveTimer = setTimeout(() => { void this.flushPendingSave(false); }, 280);
   }
@@ -1521,26 +1631,66 @@ class RunningTaskApp extends Component {
     }
   };
   retrySave = async (): Promise<void> => { await this.flushPendingSave(false); };
+  askConfirm(options: { title: string; body: string; confirmLabel?: string; danger?: boolean; input?: boolean; inputLabel?: string; defaultValue?: string }): Promise<string | undefined | null> {
+    return new Promise(resolve => {
+      this.setState({
+        prompt: Object.assign({}, options, {
+          onConfirm: (value?: string) => { this.setState({ prompt: null }); resolve(options.input ? (value || "") : undefined); }
+        })
+      });
+      this.cancelPrompt = () => { this.setState({ prompt: null }); resolve(null); };
+    });
+  }
+  cancelPrompt: () => void = () => this.setState({ prompt: null });
   showToast(message: string, type: "success" | "error" = "success"): void {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.setState({ toast: { message, type } });
     this.toastTimer = setTimeout(() => this.setState({ toast: null }), 3600);
   }
-  updateData(mutator: (draft: AppData) => void, message?: string): void {
+  /**
+   * Applies one change to an immutable copy of the workspace.
+   *
+   * Invariant: `state.data` is only ever replaced, never mutated in place. That
+   * lets the previous object serve directly as the undo snapshot and as the
+   * queued save payload, so an edit costs one deep clone instead of three.
+   *
+   * `undoKey` coalesces a run of related edits. Without it, typing a single
+   * character into Notes pushed a fresh snapshot and discarded the ability to
+   * undo the structural change before it.
+   */
+  updateData(mutator: (draft: AppData) => void, message?: string, undoKey?: string): void {
     if (!this.state.data) return;
-    const draft = deepClone(this.state.data);
+    const previous = this.state.data;
+    const draft = deepClone(previous);
     mutator(draft);
     draft.meta.updatedAt = nowIso();
     draft.meta.appVersion = APP_VERSION;
-    this.setState({ data: draft, undoSnapshot: deepClone(this.state.data), undoLabel: message || "Last change" });
+    const now = Date.now();
+    const coalesce = !!undoKey && undoKey === this.lastUndoKey && now - this.lastUndoAt < UNDO_COALESCE_MS && this.state.undoStack.length > 0;
+    this.lastUndoKey = undoKey || null;
+    this.lastUndoAt = now;
+    // A coalesced keystroke joins the step already on the stack, so a typing
+    // run costs one undo step instead of one per character.
+    this.setState({ data: draft, undoStack: coalesce ? this.state.undoStack : this.pushUndo(previous, message || "Last change") });
     if (message) this.showToast(message);
   }
+  /**
+   * Returns a new stack with `data` pushed, bounded to UNDO_DEPTH.
+   *
+   * Entries hold previously live workspace objects rather than fresh clones,
+   * which is safe because state.data is never mutated in place. The depth cap
+   * bounds how much workspace history stays resident.
+   */
+  pushUndo(data: AppData, label: string): Array<{ data: AppData; label: string }> {
+    return this.state.undoStack.concat([{ data, label }]).slice(-UNDO_DEPTH);
+  }
   undoLastChange = (): void => {
-    if (!this.state.undoSnapshot) return;
-    const restored = deepClone(this.state.undoSnapshot);
-    const label = this.state.undoLabel || "Last change";
-    this.setState({ data: restored, undoSnapshot: null, undoLabel: "" });
-    this.showToast(`Undid: ${label.replace(/\.$/, "")}.`);
+    const stack = this.state.undoStack;
+    if (!stack.length) return;
+    this.lastUndoKey = null;
+    const entry = stack[stack.length - 1];
+    this.setState({ data: deepClone(entry.data), undoStack: stack.slice(0, -1), drawerCardId: null });
+    this.showToast(`Undid: ${entry.label.replace(/\.$/, "")}.`);
   };
   navigate = (route: RouteName, topicId: string | null = null, scope: SmartScope = ""): void => {
     this.setState({ route, selectedTopicId: topicId, scope, filtersOpen: false });
@@ -1564,7 +1714,7 @@ class RunningTaskApp extends Component {
       if (this.state.scope === "today" && offset !== 0) return false;
       if (this.state.scope === "overdue" && !(offset !== null && offset < 0)) return false;
       if (this.state.scope === "my-ball" && bic?.id !== data.settings.myActorId) return false;
-      if (this.state.scope === "waiting" && !((bic && bic.id !== data.settings.myActorId) || card.statusId === "status-waiting")) return false;
+      if (this.state.scope === "waiting" && !isWaitingCard(data, card)) return false;
       if (this.state.scope === "no-date" && !!date) return false;
       const f = this.state.filters;
       if (f.statusId && card.statusId !== f.statusId) return false;
@@ -1603,7 +1753,7 @@ class RunningTaskApp extends Component {
       const maxRank = Math.max(0, ...data.cards.filter(c => c.topicId === form.topicId).map(c => c.rank));
       const card: Card = {
         id: cardId, topicId: form.topicId, subtopicId: form.subtopicId || null, cardTypeId: form.cardTypeId || null,
-        statusId: form.statusId || "status-todo", reference: form.reference.trim(), title: form.title.trim(), description: form.description.trim(), notes: "",
+        statusId: form.statusId || firstActiveStatusId(data), reference: form.reference.trim(), title: form.title.trim(), description: form.description.trim(), notes: "",
         priority: form.priority, targetDate: form.targetDate || null, fallbackBicId: form.fallbackBicId || null, tags: [], rank: maxRank + 10,
         isArchived: false, archiveReason: null, lastActiveStatusId: null, completedAt: null, createdAt: stamp, updatedAt: stamp
       };
@@ -1612,7 +1762,7 @@ class RunningTaskApp extends Component {
     }, "Task created locally.");
     this.setState({ createOpen: false, drawerCardId: cardId });
   };
-  updateCard = (cardId: string, field: keyof Card | string, value: any): void => this.updateData(data => { const card = data.cards.find(c => c.id === cardId); if (card) { (card as any)[field] = value; card.updatedAt = nowIso(); } });
+  updateCard = (cardId: string, field: keyof Card | string, value: any): void => this.updateData(data => { const card = data.cards.find(c => c.id === cardId); if (card) { (card as any)[field] = value; card.updatedAt = nowIso(); } }, undefined, `card:${cardId}:${String(field)}`);
   moveCardTopic = (cardId: string, topicId: string): void => this.updateData(data => { const card = data.cards.find(c => c.id === cardId); if (!card) return; card.topicId = topicId; if (card.subtopicId && !data.subtopics.some(s => s.id === card.subtopicId && s.topicId === topicId)) card.subtopicId = null; card.updatedAt = nowIso(); });
   setCardStatus = (cardId: string, statusId: string): void => {
     const data = this.state.data; if (!data) return;
@@ -1628,9 +1778,15 @@ class RunningTaskApp extends Component {
     this.updateData(data => { const card = data.cards.find(c => c.id === cardId); if (card) { card.lastActiveStatusId = card.statusId; card.statusId = data.statuses.find(s => s.terminal)?.id || "status-done"; card.isArchived = true; card.archiveReason = "completed"; card.completedAt = nowIso(); card.updatedAt = nowIso(); } }, "Task completed and stored in Archive.");
     this.setState({ drawerCardId: null });
   };
-  restoreCard = (cardId: string): void => this.updateData(data => { const card = data.cards.find(c => c.id === cardId); if (card) { const valid = data.statuses.some(s => s.id === card.lastActiveStatusId && !s.terminal); card.statusId = valid ? String(card.lastActiveStatusId) : "status-todo"; card.isArchived = false; card.archiveReason = null; card.completedAt = null; card.updatedAt = nowIso(); } }, "Task restored to the active workspace.");
-  deleteCard = (cardId: string): void => {
-    if (!window.confirm("Permanently delete this task and its checklist? This cannot be undone except from a backup.")) return;
+  restoreCard = (cardId: string): void => this.updateData(data => { const card = data.cards.find(c => c.id === cardId); if (card) { const valid = data.statuses.some(s => s.id === card.lastActiveStatusId && !s.terminal); card.statusId = valid ? String(card.lastActiveStatusId) : firstActiveStatusId(data); card.isArchived = false; card.archiveReason = null; card.completedAt = null; card.updatedAt = nowIso(); } }, "Task restored to the active workspace.");
+  deleteCard = async (cardId: string): Promise<void> => {
+    const confirmed = await this.askConfirm({
+      title: "Delete this task permanently?",
+      body: "The task and its checklist are removed from the current workspace. This cannot be undone except by restoring a backup.",
+      confirmLabel: "Delete permanently",
+      danger: true
+    });
+    if (confirmed === null) return;
     this.updateData(data => { data.cards = data.cards.filter(c => c.id !== cardId); data.checklistItems = data.checklistItems.filter(i => i.cardId !== cardId); }, "Task permanently deleted.");
   };
   duplicateCard = (cardId: string): void => {
@@ -1639,7 +1795,7 @@ class RunningTaskApp extends Component {
     if (newId) this.setState({ drawerCardId: newId });
   };
   toggleItem = (itemId: string): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (!item) return; item.completed = !item.completed; item.completedAt = item.completed ? nowIso() : null; const card = data.cards.find(c => c.id === item.cardId); if (card) card.updatedAt = nowIso(); });
-  updateItem = (itemId: string, field: keyof ChecklistItem | string, value: any): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (item) { (item as any)[field] = value; const card = data.cards.find(c => c.id === item.cardId); if (card) card.updatedAt = nowIso(); } });
+  updateItem = (itemId: string, field: keyof ChecklistItem | string, value: any): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (item) { (item as any)[field] = value; const card = data.cards.find(c => c.id === item.cardId); if (card) card.updatedAt = nowIso(); } }, undefined, `item:${itemId}:${String(field)}`);
   addItem = (cardId: string): void => this.updateData(data => { const max = Math.max(0, ...data.checklistItems.filter(i => i.cardId === cardId).map(i => i.rank)); data.checklistItems.push({ id: uid("item"), cardId, parentId: null, title: "New checklist item", notes: "", dueDate: null, bicId: data.settings.myActorId, completed: false, rank: max + 10, completedAt: null }); const card = data.cards.find(c => c.id === cardId); if (card) card.updatedAt = nowIso(); });
   deleteItem = (itemId: string): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (!item) return; data.checklistItems.filter(i => i.parentId === itemId).forEach(i => i.parentId = null); data.checklistItems = data.checklistItems.filter(i => i.id !== itemId); const card = data.cards.find(c => c.id === item.cardId); if (card) card.updatedAt = nowIso(); });
   indentItem = (itemId: string): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (!item) return; const siblings = checklistFor(data, item.cardId); const index = siblings.findIndex(i => i.id === itemId); if (index > 0) item.parentId = siblings[index - 1].id; });
@@ -1654,7 +1810,7 @@ class RunningTaskApp extends Component {
     if (kind === "topic") this.moveCardTopic(cardId, columnId); else this.setCardStatus(cardId, columnId);
     this.setState({ draggingId: null, dragOverId: null });
   };
-  setSetting = (key: keyof Settings | string, value: any): void => this.updateData(data => { (data.settings as any)[key] = value; });
+  setSetting = (key: keyof Settings | string, value: any): void => this.updateData(data => { (data.settings as any)[key] = value; }, undefined, `setting:${String(key)}`);
   setAutostart = async (enabled: boolean): Promise<void> => {
     try {
       if (this.provider.desktop) await this.provider.setAutostart(enabled);
@@ -1663,12 +1819,86 @@ class RunningTaskApp extends Component {
     } catch (error: any) { this.showToast(`Could not change startup setting: ${error?.message || error}`, "error"); }
   };
   openEntityDialog = (kind: string, parentId: string | null = null, item?: any): void => this.setState({ entityDialog: { kind, parentId, item } });
+  /**
+   * Counts what a configuration entity is still holding, so removal can be
+   * refused with a specific reason instead of silently orphaning cards.
+   */
+  entityUsage(data: AppData, kind: string, id: string): { blocking: string[]; archivable: boolean } {
+    const blocking: string[] = [];
+    if (kind === "topic") {
+      const cards = data.cards.filter(c => c.topicId === id).length;
+      const subs = data.subtopics.filter(sub => sub.topicId === id).length;
+      if (cards) blocking.push(`${cards} task${cards === 1 ? "" : "s"}`);
+      if (subs) blocking.push(`${subs} subtopic${subs === 1 ? "" : "s"}`);
+      if (data.topics.filter(t => !t.archived).length <= 1) blocking.push("the only active Topic");
+    } else if (kind === "subtopic") {
+      const cards = data.cards.filter(c => c.subtopicId === id).length;
+      if (cards) blocking.push(`${cards} task${cards === 1 ? "" : "s"}`);
+    } else if (kind === "type") {
+      const cards = data.cards.filter(c => c.cardTypeId === id).length;
+      if (cards) blocking.push(`${cards} task${cards === 1 ? "" : "s"}`);
+    } else if (kind === "actor") {
+      const cards = data.cards.filter(c => c.fallbackBicId === id).length;
+      const items = data.checklistItems.filter(i => i.bicId === id).length;
+      if (cards) blocking.push(`${cards} fallback assignment${cards === 1 ? "" : "s"}`);
+      if (items) blocking.push(`${items} checklist item${items === 1 ? "" : "s"}`);
+      if (data.settings.myActorId === id) blocking.push("your own Me actor");
+    } else if (kind === "status") {
+      const cards = data.cards.filter(c => c.statusId === id).length;
+      const status = statusById(data, id);
+      if (cards) blocking.push(`${cards} task${cards === 1 ? "" : "s"}`);
+      if (status?.terminal && data.statuses.filter(st => st.terminal).length <= 1) blocking.push("the only terminal status");
+      if (!status?.terminal && data.statuses.filter(st => !st.terminal).length <= 1) blocking.push("the only active status");
+    }
+    return { blocking, archivable: kind !== "status" };
+  }
+  collectionFor(data: AppData, kind: string): any[] {
+    return kind === "topic" ? data.topics : kind === "actor" ? data.actors : kind === "type" ? data.cardTypes : kind === "status" ? data.statuses : data.subtopics;
+  }
+  removeEntity = async (kind: string, item: any): Promise<void> => {
+    const data = this.state.data; if (!data) return;
+    const { blocking, archivable } = this.entityUsage(data, kind, item.id);
+    const label = kind === "type" ? "Card Type" : kind === "actor" ? "BIC actor" : kind;
+    if (blocking.length) {
+      const detail = blocking.join(", ");
+      if (!archivable) {
+        this.showToast(`"${item.name}" is still used by ${detail}. Reassign those first.`, "error");
+        return;
+      }
+      const hide = await this.askConfirm({
+        title: `"${item.name}" is still in use`,
+        body: `It is referenced by ${detail}, so it cannot be deleted. It can be hidden instead: existing records keep it, but it stops appearing in menus and columns.`,
+        confirmLabel: "Hide it"
+      });
+      if (hide === null) return;
+      this.updateData(draft => { const record = this.collectionFor(draft, kind).find(r => r.id === item.id); if (record) record.archived = true; }, `${item.name} hidden.`);
+      this.setState({ entityDialog: null });
+      return;
+    }
+    const confirmed = await this.askConfirm({
+      title: `Delete this ${label}?`,
+      body: `"${item.name}" is not referenced by any task, so it can be removed cleanly.`,
+      confirmLabel: "Delete",
+      danger: true
+    });
+    if (confirmed === null) return;
+    this.updateData(draft => {
+      const collection = this.collectionFor(draft, kind);
+      const index = collection.findIndex(r => r.id === item.id);
+      if (index >= 0) collection.splice(index, 1);
+      if (kind === "topic") draft.subtopics = draft.subtopics.filter(sub => sub.topicId !== item.id);
+    }, `${item.name} deleted.`);
+    this.setState({ entityDialog: null });
+  };
+  restoreEntity = (kind: string, item: any): void => {
+    this.updateData(draft => { const record = this.collectionFor(draft, kind).find(r => r.id === item.id); if (record) record.archived = false; }, `${item.name} restored.`);
+  };
   saveEntity = (values: any): void => {
     const dialog = this.state.entityDialog; if (!dialog) return;
     this.updateData(data => {
       if (dialog.item) {
         const collection: any[] = dialog.kind === "topic" ? data.topics : dialog.kind === "actor" ? data.actors : dialog.kind === "type" ? data.cardTypes : dialog.kind === "status" ? data.statuses : data.subtopics;
-        const existing = collection.find(i => i.id === dialog.item.id); if (existing) { existing.name = values.name.trim(); existing.color = values.color; if (dialog.kind === "actor") existing.organization = values.organization.trim(); }
+        const existing = collection.find(i => i.id === dialog.item.id); if (existing) { existing.name = values.name.trim(); existing.color = values.color; if (dialog.kind === "actor") existing.organization = values.organization.trim(); if (dialog.kind === "status") existing.waiting = !!values.waiting; }
       } else if (dialog.kind === "topic") {
         data.topics.push({ id: uid("topic"), name: values.name.trim(), color: values.color, icon: "layers", rank: Math.max(0, ...data.topics.map(t => t.rank)) + 10, archived: false });
       } else if (dialog.kind === "subtopic") {
@@ -1678,13 +1908,14 @@ class RunningTaskApp extends Component {
       } else if (dialog.kind === "type") {
         data.cardTypes.push({ id: uid("type"), name: values.name.trim(), color: values.color, icon: "tag", rank: Math.max(0, ...data.cardTypes.map(t => t.rank)) + 10, archived: false });
       } else if (dialog.kind === "status") {
-        data.statuses.push({ id: uid("status"), name: values.name.trim(), color: values.color, rank: Math.max(0, ...data.statuses.map(status => status.rank)) + 10, terminal: false });
+        data.statuses.push({ id: uid("status"), name: values.name.trim(), color: values.color, rank: Math.max(0, ...data.statuses.map(status => status.rank)) + 10, terminal: false, waiting: !!values.waiting });
       }
     }, `${dialog.kind.charAt(0).toUpperCase() + dialog.kind.slice(1)} saved.`);
     this.setState({ entityDialog: null });
   };
-  saveView = (): void => {
-    const name = window.prompt("Name this saved view:"); if (!name || !name.trim()) return;
+  saveView = async (): Promise<void> => {
+    const name = await this.askConfirm({ title: "Save this view", body: "The current route, Topic, queue, and filters are stored in the sidebar.", confirmLabel: "Save view", input: true, inputLabel: "View name" });
+    if (!name) return;
     this.updateData(data => data.savedViews.push({ id: uid("view"), name: name.trim(), route: this.state.route === "dashboard" || this.state.route === "archive" || this.state.route === "settings" ? "list" : this.state.route, selectedTopicId: this.state.selectedTopicId, scope: this.state.scope, filters: deepClone(this.state.filters) }), "View saved to the sidebar.");
     this.setState({ filtersOpen: false });
   };
@@ -1704,21 +1935,23 @@ class RunningTaskApp extends Component {
     finally { this.setState({ backupBusy: false }); }
   };
   restoreBackup = async (id: string): Promise<void> => {
-    if (!window.confirm("Restore this backup? The current workspace will be backed up first, then replaced.")) return;
+    const confirmed = await this.askConfirm({ title: "Restore this backup?", body: "The current workspace is backed up first, then fully replaced by the selected backup.", confirmLabel: "Back up and restore" });
+    if (confirmed === null) return;
     this.setState({ backupBusy: true });
     try {
       if (!await this.flushPendingSave(false)) throw new Error("The latest workspace changes could not be saved before restore.");
       const previous = this.state.data ? deepClone(this.state.data) : null;
       const data = await this.provider.restoreBackup(id);
       this.suppressNextAutosave = true;
-      this.setState({ data, drawerCardId: null, expanded: new Set<string>(), undoSnapshot: previous, undoLabel: "Restore backup", saveState: "saved" });
+      this.setState({ data, drawerCardId: null, expanded: new Set<string>(), undoStack: this.pushUndo(previous as AppData, "Restore backup"), saveState: "saved" });
       await this.refreshBackups();
       this.showToast("Backup restored successfully.");
     } catch (error: any) { this.showToast(`Restore failed: ${error?.message || error}`, "error"); }
     finally { this.setState({ backupBusy: false }); }
   };
   deleteBackup = async (id: string): Promise<void> => {
-    if (!window.confirm("Delete this backup file?")) return;
+    const confirmed = await this.askConfirm({ title: "Delete this backup?", body: "The backup file is removed from the local backup folder.", confirmLabel: "Delete backup", danger: true });
+    if (confirmed === null) return;
     try { await this.provider.deleteBackup(id); await this.refreshBackups(); this.showToast("Backup deleted."); }
     catch (error: any) { this.showToast(`Could not delete backup: ${error?.message || error}`, "error"); }
   };
@@ -1767,7 +2000,7 @@ class RunningTaskApp extends Component {
       await this.provider.save(imported);
       this.applyTheme(imported.settings.theme);
       this.suppressNextAutosave = true;
-      this.setState({ data: imported, importCandidate: null, drawerCardId: null, expanded: new Set<string>(), selectedTopicId: null, scope: "", route: "dashboard", undoSnapshot: previous, undoLabel: "Import workspace", saveState: "saved" });
+      this.setState({ data: imported, importCandidate: null, drawerCardId: null, expanded: new Set<string>(), selectedTopicId: null, scope: "", route: "dashboard", undoStack: this.pushUndo(previous, "Import workspace"), saveState: "saved" });
       await this.refreshBackups();
       this.showToast("Workspace imported. The previous workspace is available as a safety backup.");
     } catch (error: any) { this.showToast(`Import failed: ${error?.message || error}`, "error"); }
@@ -1794,23 +2027,51 @@ class RunningTaskApp extends Component {
     if (this.state.route === "calendar") return html`<${CalendarView} ...${common} month=${this.state.calendarMonth} onMonth=${(calendarMonth: string) => this.setState({ calendarMonth })} onCreateDate=${(date: string) => this.openCreate({ date })} onNavigate=${this.navigate}/>`;
     if (this.state.route === "flow") return html`<${FlowView} ...${common}/>`;
     if (this.state.route === "archive") return html`<${ArchiveView} data=${data} backups=${this.state.backups} storageInfo=${this.state.storageInfo} desktop=${this.provider.desktop} backupBusy=${this.state.backupBusy || this.state.importBusy} onRefresh=${this.refreshBackups} onBackup=${this.createBackup} onExportJson=${this.exportJson} onExportCsv=${this.exportCsv} onExportMarkdown=${this.exportMarkdown} onImportFile=${this.prepareImportFile} onOpenFolder=${() => this.provider.openDataFolder()} onRestoreCard=${this.restoreCard} onDeleteCard=${this.deleteCard} onRestoreBackup=${this.restoreBackup} onDeleteBackup=${this.deleteBackup}/>`;
-    return html`<${SettingsView} data=${data} desktop=${this.provider.desktop} storageInfo=${this.state.storageInfo} onSetting=${this.setSetting} onAutostart=${this.setAutostart} onEntityDialog=${this.openEntityDialog}/>`;
+    return html`<${SettingsView} data=${data} desktop=${this.provider.desktop} storageInfo=${this.state.storageInfo} onSetting=${this.setSetting} onAutostart=${this.setAutostart} onEntityDialog=${this.openEntityDialog} onRestoreEntity=${this.restoreEntity}/>`;
   }
   render(): any {
     if (!this.state.ready) return html`<div className="loading"><div><div className="spinner"></div>Opening your local workspace…</div></div>`;
     if (this.state.loadError || !this.state.data) return html`<${RecoveryScreen} message=${this.state.loadError || "The workspace did not return any data."} storageInfo=${this.state.storageInfo} desktop=${this.provider.desktop} onRetry=${this.loadWorkspace} onOpenFolder=${() => this.provider.openDataFolder()}/>`;
-    const data = this.state.data; const cards = this.filteredCards(); const drawerCard = this.state.drawerCardId ? data.cards.find(c => c.id === this.state.drawerCardId && !c.isArchived) : undefined;
+    const data = this.state.data; const cards = this.filteredCards(); const drawerCard = this.state.drawerCardId ? data.cards.find(c => c.id === this.state.drawerCardId) : undefined;
     return html`<div className=${`app density-${data.settings.density}`}>
-      <${Topbar} route=${this.state.route} search=${this.state.search} onSearch=${(search: string) => this.setState({ search })} onRoute=${(route: RouteName) => this.navigate(route, this.state.selectedTopicId, this.state.scope)} onCreate=${() => this.openCreate()} onToggleFilters=${() => this.setState({ filtersOpen: !this.state.filtersOpen })} filtersOpen=${this.state.filtersOpen} activeFilterCount=${this.activeFilterCount()} saveState=${this.state.saveState} desktop=${this.provider.desktop} undoAvailable=${!!this.state.undoSnapshot} onUndo=${this.undoLastChange} onRetrySave=${this.retrySave}/>
+      <${Topbar} route=${this.state.route} search=${this.state.search} onSearch=${(search: string) => this.setState({ search })} onRoute=${(route: RouteName) => this.navigate(route, this.state.selectedTopicId, this.state.scope)} onCreate=${() => this.openCreate()} onToggleFilters=${() => this.setState({ filtersOpen: !this.state.filtersOpen })} filtersOpen=${this.state.filtersOpen} activeFilterCount=${this.activeFilterCount()} saveState=${this.state.saveState} desktop=${this.provider.desktop} undoAvailable=${this.state.undoStack.length > 0} onUndo=${this.undoLastChange} onRetrySave=${this.retrySave}/>
       <div className="app-shell"><${Sidebar} data=${data} route=${this.state.route} selectedTopicId=${this.state.selectedTopicId} scope=${this.state.scope} onNavigate=${this.navigate} onSavedView=${this.applySavedView} onAddTopic=${() => this.openEntityDialog("topic")}/><main className="main">${this.renderMain(data, cards)}</main></div>
       ${this.state.filtersOpen ? html`<${FilterPopover} data=${data} filters=${this.state.filters} onFilter=${this.setFilter} onClear=${() => this.setState({ filters: { statusId: "", bicId: "", due: "all", priority: "" } })} onSaveView=${this.saveView}/>` : null}
       ${this.state.createOpen ? html`<${CreateTaskModal} data=${data} defaultTopicId=${this.state.createDefaults.topicId} defaultStatusId=${this.state.createDefaults.statusId} defaultDate=${this.state.createDefaults.date} onClose=${() => this.setState({ createOpen: false })} onCreate=${this.createTask}/>` : null}
       ${this.state.importCandidate ? html`<${ImportWorkspaceModal} candidate=${this.state.importCandidate} busy=${this.state.importBusy} onClose=${() => this.setState({ importCandidate: null })} onConfirm=${this.confirmImport}/>` : null}
-      ${this.state.entityDialog ? html`<${EntityDialog} kind=${this.state.entityDialog.kind} item=${this.state.entityDialog.item} onClose=${() => this.setState({ entityDialog: null })} onSave=${this.saveEntity}/>` : null}
-      ${drawerCard ? html`<${CardDrawer} data=${data} card=${drawerCard} onClose=${() => this.setState({ drawerCardId: null })} onUpdateCard=${this.updateCard} onMoveTopic=${this.moveCardTopic} onStatus=${this.setCardStatus} onArchive=${this.archiveCard} onDone=${this.markDone} onDuplicate=${this.duplicateCard} onToggleItem=${this.toggleItem} onUpdateItem=${this.updateItem} onAddItem=${this.addItem} onDeleteItem=${this.deleteItem} onIndentItem=${this.indentItem} onOutdentItem=${this.outdentItem}/>` : null}
+      ${this.state.prompt ? html`<${PromptModal} ...${this.state.prompt} onCancel=${() => this.cancelPrompt()}/>` : null}
+      ${this.state.entityDialog ? html`<${EntityDialog} kind=${this.state.entityDialog.kind} item=${this.state.entityDialog.item} onClose=${() => this.setState({ entityDialog: null })} onSave=${this.saveEntity} onRemove=${this.removeEntity}/>` : null}
+      ${drawerCard ? html`<${CardDrawer} data=${data} card=${drawerCard} onClose=${() => this.setState({ drawerCardId: null })} onUpdateCard=${this.updateCard} onMoveTopic=${this.moveCardTopic} onStatus=${this.setCardStatus} onArchive=${this.archiveCard} onDone=${this.markDone} onDuplicate=${this.duplicateCard} onToggleItem=${this.toggleItem} onUpdateItem=${this.updateItem} onAddItem=${this.addItem} onDeleteItem=${this.deleteItem} onIndentItem=${this.indentItem} onOutdentItem=${this.outdentItem} onRestoreCard=${(id: string) => { this.restoreCard(id); this.setState({ drawerCardId: null }); }}/>` : null}
       ${this.state.toast ? html`<div className=${`toast ${this.state.toast.type}`}><${Icon} name=${this.state.toast.type === "success" ? "check" : "alert"} size=${18}/><span>${this.state.toast.message}</span></div>` : null}
     </div>`;
   }
 }
 
-ReactDOM.render(html`<${RunningTaskApp}/>`, document.getElementById("root"));
+/**
+ * Keeps a render fault recoverable instead of blanking the window.
+ *
+ * The workspace itself is already safe: saves are queued and committed by the
+ * backend, so a crash here loses presentation state, not data.
+ */
+class AppErrorBoundary extends Component {
+  state: any = { error: null };
+  // The vendored React is 16.0, which predates getDerivedStateFromError (16.6).
+  // componentDidCatch plus setState is the pattern this version supports.
+  componentDidCatch(error: any, info: any): void {
+    console.error("Running_Task interface error", error, info);
+    this.setState({ error });
+  }
+  render(): any {
+    if (!this.state.error) return this.props.children;
+    const detail = this.state.error?.message || String(this.state.error);
+    return html`<${RecoveryScreen}
+      message=${`The interface stopped rendering: ${detail}`}
+      storageInfo=${null}
+      desktop=${hasTauri()}
+      onRetry=${() => window.location.reload()}
+      onOpenFolder=${() => { if (hasTauri()) void tauriInvoke("open_data_folder"); }}
+    />`;
+  }
+}
+
+ReactDOM.render(html`<${AppErrorBoundary}><${RunningTaskApp}/><//>`, document.getElementById("root"));

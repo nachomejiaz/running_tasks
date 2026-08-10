@@ -48,6 +48,10 @@ jobs:
       - name: Verify source, interface, data rules, and release configuration
         run: npm run verify
 
+      - name: Test persistence, migration, and backup layer
+        working-directory: src-tauri
+        run: cargo test --locked
+
       - name: Build current-user NSIS setup executable
         run: npm exec -- tauri build --bundles nsis
 

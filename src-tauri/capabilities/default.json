@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Minimum capability for the Running_Task main window.",
+  "description": "Minimum capability for the Running_Task main window. core:default does not grant any window-closing command, so the close guard additionally needs allow-destroy as its fallback path.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-destroy"]
 }
