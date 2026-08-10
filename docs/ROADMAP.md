@@ -4,7 +4,7 @@
 
 Running_Task is a local, single-user application. Production readiness is defined by reliable storage, recovery, safe upgrades, and successful operation on the target company PC—not by completing every possible feature before release.
 
-## Current build: 1.0.0-rc.1
+## Current build: 1.1.0
 
 **Status:** Source stabilization complete; native Windows build and target-PC acceptance pending.
 

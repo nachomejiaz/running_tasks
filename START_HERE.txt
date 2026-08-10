@@ -1,5 +1,5 @@
 RUNNING_TASK - START HERE
-Version 1.0.0-rc.1
+Version 1.1.0
 
 Running_Task is a private local task board for Windows. Production data stays in
 a local SQLite database. No account or cloud service is required.
@@ -84,7 +84,7 @@ https://github.com/nachomejiaz/running_tasks
 
 One-time browser upload, with no Git installation or Administrator rights:
 
-1. Extract Running_Task-1.0.0-rc.1-github-web-upload.zip.
+1. Extract Running_Task-1.1.0-github-web-upload.zip.
 2. Open the extracted payload folder.
 3. Select everything INSIDE that folder, including .github, frontend, src-tauri,
    scripts, tests, docs, and the root files. Do not upload the outer payload
@@ -93,7 +93,7 @@ One-time browser upload, with no Git installation or Administrator rights:
 5. Choose Add file, then Upload files.
 6. Drag the selected contents into the upload area.
 7. Enter: Build Running_Task 1.0.0 release candidate
-8. Commit to release/v1.0.0-rc.1. Merge to main only after acceptance.
+8. Commit to release/v1.1.0. Merge to main only after acceptance.
 9. Open Actions and wait for Build Running_Task for Windows.
 10. Download and extract the Running_Task-Windows- artifact.
 

@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.1.0 - 2026-08-10
+
+### Fixed
+
+- The desktop window could not be closed. The close guard now owns the decision
+  and closes through a backend command instead of an ungranted core:window one.
+- Any schema change would have locked existing workspaces out; ordered
+  migrations now run in one transaction behind the pre-upgrade backup.
+- The Waiting-On queue keyed off a hardcoded status identifier.
+- Undo held a single slot, so one keystroke discarded the previous change.
+- Export and backup commands skipped the database readiness check.
+- The daily automatic backup rolled over on UTC rather than the local date.
+- Restored .gitattributes and .gitignore, dropped by the browser-upload route.
+
+### Added
+
+- Rust tests for validation, save/load, migration, backup pruning, and backup
+  path safety, wired into CI.
+- Delete and hide for Topics, Subtopics, Card Types, and BIC actors, with a
+  restore surface for hidden items.
+- Editors for tags and checklist item notes.
+- Saved view deletion.
+- Read-only drawer for archived tasks, with direct restore.
+- An error boundary that shows the recovery screen instead of a blank window.
+- In-app confirmation and prompt dialogs.
+- Committed package-lock.json and Cargo.lock.
+
+### Changed
+
+- An edit costs one workspace copy instead of three, and launching no longer
+  rewrites an unchanged database.
+- Consolidated two competing Windows workflows into one.
+- Replaced the demo dataset's real project identifiers with placeholders.
+- Release tests derive the version from VERSION instead of hardcoding it.
+
+### Removed
+
+- A corrupt 8 KB source archive and a duplicated acceptance-test document.
+
+## 1.0.0-rc.1 — 2026-07-27
+
+### Added
+
+- Serialized, coalesced local save queue with explicit Retry after failure.
+- Close-save guard for pending desktop edits.
+- Fail-closed local-data recovery screen.
+- Single-instance desktop enforcement.
+- Startup SQLite integrity and schema compatibility checks.
+- One-time `Before_Upgrade` SQLite safety backup.
+- Target-PC production acceptance checklist.
+- Automated reliability tests for save ordering, retry retention, and load recovery.
+- Release-branch Windows builds and generated dependency-lockfile artifacts.
+
+### Changed
+
+- Froze the approved product feature baseline for production stabilization.
+- Replaced the long pre-production feature roadmap with one release candidate followed by v1.0.0.
+- Backup, restore, import, and export operations now flush pending edits first.
+- Database startup errors remain recoverable in the UI instead of causing starter data to be written.
 ## 0.3.0-alpha.3 - 2026-07-24
 
 ### Added
@@ -56,23 +115,3 @@
 - Automated source/render/domain smoke tests.
 - Full first-pass user and developer documentation.
 
-## 1.0.0-rc.1 — 2026-07-27
-
-### Added
-
-- Serialized, coalesced local save queue with explicit Retry after failure.
-- Close-save guard for pending desktop edits.
-- Fail-closed local-data recovery screen.
-- Single-instance desktop enforcement.
-- Startup SQLite integrity and schema compatibility checks.
-- One-time `Before_Upgrade` SQLite safety backup.
-- Target-PC production acceptance checklist.
-- Automated reliability tests for save ordering, retry retention, and load recovery.
-- Release-branch Windows builds and generated dependency-lockfile artifacts.
-
-### Changed
-
-- Froze the approved product feature baseline for production stabilization.
-- Replaced the long pre-production feature roadmap with one release candidate followed by v1.0.0.
-- Backup, restore, import, and export operations now flush pending edits first.
-- Database startup errors remain recoverable in the UI instead of causing starter data to be written.

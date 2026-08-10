@@ -24,7 +24,8 @@ Use a test workspace first. Do not move important work data into the release can
 - [ ] First launch creates the clean General and Personal workspace.
 - [ ] Create a uniquely named Topic, Card, and dated checklist item.
 - [ ] Type rapidly in Card title, description, notes, and checklist fields.
-- [ ] Immediately close the window, reopen, and confirm the final text is present.
+- [ ] Immediately close the window with the X button and confirm the process exits.
+- [ ] Reopen and confirm the final text is present.
 - [ ] Top bar reaches `Saved locally` after an edit.
 - [ ] Manual backup creates a readable SQLite file in the backup folder.
 - [ ] Change a recognizable value, restore the earlier backup, and confirm the older value returns.
@@ -35,11 +36,12 @@ Use a test workspace first. Do not move important work data into the release can
 
 ## D. Upgrade protection
 
-- [ ] Place a copy of a 0.3.0-alpha.3 test database in the expected data folder.
-- [ ] Launch 1.0.0-rc.1 and confirm the workspace opens.
+- [ ] Place a copy of an older test database (schema 1) in the expected data folder.
+- [ ] Launch the new build and confirm the workspace opens and reports schema 2.
 - [ ] Confirm a `Before_Upgrade_*.sqlite` backup was created once.
 - [ ] Restart and confirm another pre-upgrade backup is not created for the same version.
 - [ ] Confirm Cards, checklists, BIC, dates, Archive, and settings remain intact.
+- [ ] Confirm the Waiting status still drives the Waiting-On queue after the upgrade.
 - [ ] Test a future schema copy and confirm Running_Task refuses to open it without writing starter data.
 
 ## E. Process and startup behavior

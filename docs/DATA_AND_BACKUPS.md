@@ -118,7 +118,7 @@ CSV includes:
 - Target date, derived next date, and current BIC.
 - Checklist title, parent title, due date, BIC, completion state, and notes.
 
-CSV is not an import format in 0.3.
+CSV is not an import format. JSON is the only supported round-trip workspace format.
 
 ## Markdown export
 

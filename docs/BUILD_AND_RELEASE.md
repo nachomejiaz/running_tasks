@@ -113,7 +113,7 @@ Update all of these together:
 - `CHANGELOG.md`
 - release notes and versioned documentation
 
-The frontend display version, Cargo package version, and Tauri bundle version are all `1.0.0-rc.1`.
+The frontend display version, Cargo package version, and Tauri bundle version are all `1.1.0`.
 
 ## Source publishing
 

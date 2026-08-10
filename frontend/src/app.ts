@@ -4,7 +4,7 @@ declare const htm: any;
 
 const html = htm.bind(React.createElement);
 const Component = React.Component;
-const APP_VERSION = "1.0.0-rc.1";
+const APP_VERSION = "1.1.0";
 const APP_SCHEMA_VERSION = 2;
 const STORAGE_KEY = "running_task.workspace.v1";
 const BACKUP_KEY = "running_task.browser_backups.v1";
@@ -1214,6 +1214,8 @@ function SettingsView(props: any): any {
 
       <section className="settings-card"><div className="settings-card-header"><div className="settings-card-title">Card Types</div><div className="settings-card-desc">Reusable classification independent of Topic and Subtopic.</div></div><div className="entity-toolbar"><span>${typeRows.length} active types</span><button className="btn btn-primary btn-small" onClick=${() => props.onEntityDialog("type")}><${Icon} name="plus" size=${14}/>Add Type</button></div><div className="entity-list">${typeRows.map(type => html`<div className="entity-row" key=${type.id}><span className="topic-dot" style=${{ background: type.color }}></span><div className="entity-name">${type.name}</div><button className="btn btn-ghost btn-icon btn-small" title="Edit" onClick=${() => props.onEntityDialog("type", null, type)}><${Icon} name="edit" size=${14}/></button></div>`)}</div></section>
 
+      ${data.savedViews.length ? html`<section className="settings-card"><div className="settings-card-header"><div className="settings-card-title">Saved views</div><div className="settings-card-desc">Named filter combinations pinned to the sidebar.</div></div><div className="entity-list">${data.savedViews.map(view => html`<div className="entity-row" key=${view.id}><${Icon} name="save" size=${16}/><div className="entity-name"><div>${view.name}</div><div className="entity-meta">${view.route}${view.scope ? ` · ${String(view.scope).replace(/-/g, " ")}` : ""}</div></div><button className="btn btn-ghost btn-icon btn-small" title="Delete saved view" onClick=${() => props.onDeleteSavedView(view.id)}><${Icon} name="trash" size=${14}/></button></div>`)}</div></section>` : null}
+
       ${(() => {
         const hidden = [
           ...data.topics.filter(t => t.archived).map(item => ({ kind: "topic", label: "Topic", item })),
@@ -1394,8 +1396,12 @@ function CardDrawer(props: any): any {
         <input className="input check-title" value=${item.title} onInput=${(e: any) => props.onUpdateItem(item.id, "title", e.target.value)} />
         <input className="input" type="date" value=${item.dueDate || ""} onChange=${(e: any) => props.onUpdateItem(item.id, "dueDate", e.target.value || null)} />
         <select className="select" value=${item.bicId || ""} onChange=${(e: any) => props.onUpdateItem(item.id, "bicId", e.target.value || null)}><option value="">No BIC</option>${sortRank(data.actors.filter(a => !a.archived)).map(a => html`<option value=${a.id} key=${a.id}>${a.name}</option>`)}</select>
+        <button className=${`btn btn-ghost btn-icon ${item.notes ? "active" : ""}`} title=${item.notes ? "Edit item notes" : "Add item notes"} onClick=${() => props.onToggleItemNotes(item.id)}><${Icon} name="fileText" size=${13}/></button>
         <div className="check-controls"><button className="btn btn-ghost btn-icon" title="Outdent" disabled=${!item.parentId} onClick=${() => props.onOutdentItem(item.id)}><${Icon} name="arrowLeft" size=${13}/></button><button className="btn btn-ghost btn-icon" title="Indent under prior item" disabled=${index === 0} onClick=${() => props.onIndentItem(item.id)}><${Icon} name="arrowRight" size=${13}/></button><button className="btn btn-ghost btn-icon" title="Delete" onClick=${() => props.onDeleteItem(item.id)}><${Icon} name="trash" size=${13}/></button></div>
-      </div>`)}</div>` : html`<div className="check-empty">No checklist yet. Add the next step, a due date, and a Ball in Court.</div>`}
+      </div>${props.notesOpen.has(item.id) || item.notes ? html`<textarea className="textarea" style=${{ minHeight: "56px", margin: "0 0 8px 0" }} placeholder="Notes for this checklist item" value=${item.notes} onInput=${(e: any) => props.onUpdateItem(item.id, "notes", e.target.value)} />` : null}`)}</div>` : html`<div className="check-empty">No checklist yet. Add the next step, a due date, and a Ball in Court.</div>`}
+      <div className="section-title"><${Icon} name="tag" size=${15}/>Tags</div>
+      <input className="input" value=${card.tags.join(", ")} placeholder="Comma separated, e.g. cost, field, urgent"
+        onChange=${(e: any) => update("tags", String(e.target.value).split(",").map((t: string) => t.trim()).filter(Boolean).filter((t: string, i: number, all: string[]) => all.indexOf(t) === i))} />
       <div className="section-title"><${Icon} name="list" size=${15}/>Notes</div><textarea className="textarea" style=${{ minHeight: "130px" }} value=${card.notes} onInput=${(e: any) => update("notes", e.target.value)} placeholder="Longer notes, meeting details, context, or decisions…" />
       <div className="section-title"><${Icon} name="clock" size=${15}/>Local record</div><div className="activity-note">Created ${formatTimestamp(card.createdAt)} · Last changed ${formatTimestamp(card.updatedAt)}. A detailed activity log will be added in a later milestone.</div>
     </div>
@@ -1441,6 +1447,7 @@ interface RootState {
   drawerCardId: string | null;
   calendarMonth: string;
   expanded: Set<string>;
+  itemNotesOpen: Set<string>;
   draggingId: string | null;
   dragOverId: string | null;
   backups: BackupInfo[];
@@ -1469,7 +1476,7 @@ class RunningTaskApp extends Component {
   state: RootState = {
     ready: false, data: null, loadError: null, route: "dashboard", selectedTopicId: null, scope: "", search: "",
     filters: { statusId: "", bicId: "", due: "all", priority: "" }, filtersOpen: false,
-    createOpen: false, createDefaults: {}, drawerCardId: null, calendarMonth: currentMonthKey(), expanded: new Set<string>(),
+    createOpen: false, createDefaults: {}, drawerCardId: null, calendarMonth: currentMonthKey(), expanded: new Set<string>(), itemNotesOpen: new Set<string>(),
     draggingId: null, dragOverId: null, backups: [], storageInfo: null, backupBusy: false,
     importCandidate: null, importBusy: false, entityDialog: null, prompt: null, toast: null, saveState: "saved", undoStack: []
   };
@@ -1800,6 +1807,12 @@ class RunningTaskApp extends Component {
   deleteItem = (itemId: string): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (!item) return; data.checklistItems.filter(i => i.parentId === itemId).forEach(i => i.parentId = null); data.checklistItems = data.checklistItems.filter(i => i.id !== itemId); const card = data.cards.find(c => c.id === item.cardId); if (card) card.updatedAt = nowIso(); });
   indentItem = (itemId: string): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (!item) return; const siblings = checklistFor(data, item.cardId); const index = siblings.findIndex(i => i.id === itemId); if (index > 0) item.parentId = siblings[index - 1].id; });
   outdentItem = (itemId: string): void => this.updateData(data => { const item = data.checklistItems.find(i => i.id === itemId); if (item) item.parentId = null; });
+  toggleItemNotes = (itemId: string): void => {
+    const open = new Set(this.state.itemNotesOpen);
+    open.has(itemId) ? open.delete(itemId) : open.add(itemId);
+    this.setState({ itemNotesOpen: open });
+  };
+  deleteSavedView = (viewId: string): void => this.updateData(data => { data.savedViews = data.savedViews.filter(v => v.id !== viewId); }, "Saved view removed.");
   toggleExpand = (cardId: string): void => { const expanded = new Set(this.state.expanded); expanded.has(cardId) ? expanded.delete(cardId) : expanded.add(cardId); this.setState({ expanded }); };
   expandAll = (cards: Card[]): void => { const allExpanded = cards.length > 0 && cards.every(c => this.state.expanded.has(c.id)); this.setState({ expanded: allExpanded ? new Set<string>() : new Set(cards.map(c => c.id)) }); };
   onDragStart = (event: any, cardId: string): void => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", cardId); this.setState({ draggingId: cardId }); };
@@ -2027,7 +2040,7 @@ class RunningTaskApp extends Component {
     if (this.state.route === "calendar") return html`<${CalendarView} ...${common} month=${this.state.calendarMonth} onMonth=${(calendarMonth: string) => this.setState({ calendarMonth })} onCreateDate=${(date: string) => this.openCreate({ date })} onNavigate=${this.navigate}/>`;
     if (this.state.route === "flow") return html`<${FlowView} ...${common}/>`;
     if (this.state.route === "archive") return html`<${ArchiveView} data=${data} backups=${this.state.backups} storageInfo=${this.state.storageInfo} desktop=${this.provider.desktop} backupBusy=${this.state.backupBusy || this.state.importBusy} onRefresh=${this.refreshBackups} onBackup=${this.createBackup} onExportJson=${this.exportJson} onExportCsv=${this.exportCsv} onExportMarkdown=${this.exportMarkdown} onImportFile=${this.prepareImportFile} onOpenFolder=${() => this.provider.openDataFolder()} onRestoreCard=${this.restoreCard} onDeleteCard=${this.deleteCard} onRestoreBackup=${this.restoreBackup} onDeleteBackup=${this.deleteBackup}/>`;
-    return html`<${SettingsView} data=${data} desktop=${this.provider.desktop} storageInfo=${this.state.storageInfo} onSetting=${this.setSetting} onAutostart=${this.setAutostart} onEntityDialog=${this.openEntityDialog} onRestoreEntity=${this.restoreEntity}/>`;
+    return html`<${SettingsView} data=${data} desktop=${this.provider.desktop} storageInfo=${this.state.storageInfo} onSetting=${this.setSetting} onAutostart=${this.setAutostart} onEntityDialog=${this.openEntityDialog} onRestoreEntity=${this.restoreEntity} onDeleteSavedView=${this.deleteSavedView}/>`;
   }
   render(): any {
     if (!this.state.ready) return html`<div className="loading"><div><div className="spinner"></div>Opening your local workspace…</div></div>`;
@@ -2041,7 +2054,7 @@ class RunningTaskApp extends Component {
       ${this.state.importCandidate ? html`<${ImportWorkspaceModal} candidate=${this.state.importCandidate} busy=${this.state.importBusy} onClose=${() => this.setState({ importCandidate: null })} onConfirm=${this.confirmImport}/>` : null}
       ${this.state.prompt ? html`<${PromptModal} ...${this.state.prompt} onCancel=${() => this.cancelPrompt()}/>` : null}
       ${this.state.entityDialog ? html`<${EntityDialog} kind=${this.state.entityDialog.kind} item=${this.state.entityDialog.item} onClose=${() => this.setState({ entityDialog: null })} onSave=${this.saveEntity} onRemove=${this.removeEntity}/>` : null}
-      ${drawerCard ? html`<${CardDrawer} data=${data} card=${drawerCard} onClose=${() => this.setState({ drawerCardId: null })} onUpdateCard=${this.updateCard} onMoveTopic=${this.moveCardTopic} onStatus=${this.setCardStatus} onArchive=${this.archiveCard} onDone=${this.markDone} onDuplicate=${this.duplicateCard} onToggleItem=${this.toggleItem} onUpdateItem=${this.updateItem} onAddItem=${this.addItem} onDeleteItem=${this.deleteItem} onIndentItem=${this.indentItem} onOutdentItem=${this.outdentItem} onRestoreCard=${(id: string) => { this.restoreCard(id); this.setState({ drawerCardId: null }); }}/>` : null}
+      ${drawerCard ? html`<${CardDrawer} data=${data} card=${drawerCard} onClose=${() => this.setState({ drawerCardId: null })} onUpdateCard=${this.updateCard} onMoveTopic=${this.moveCardTopic} onStatus=${this.setCardStatus} onArchive=${this.archiveCard} onDone=${this.markDone} onDuplicate=${this.duplicateCard} onToggleItem=${this.toggleItem} onUpdateItem=${this.updateItem} onAddItem=${this.addItem} onDeleteItem=${this.deleteItem} onIndentItem=${this.indentItem} onOutdentItem=${this.outdentItem} onRestoreCard=${(id: string) => { this.restoreCard(id); this.setState({ drawerCardId: null }); }} notesOpen=${this.state.itemNotesOpen} onToggleItemNotes=${this.toggleItemNotes}/>` : null}
       ${this.state.toast ? html`<div className=${`toast ${this.state.toast.type}`}><${Icon} name=${this.state.toast.type === "success" ? "check" : "alert"} size=${18}/><span>${this.state.toast.message}</span></div>` : null}
     </div>`;
   }

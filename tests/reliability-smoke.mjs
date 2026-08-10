@@ -53,7 +53,7 @@ saveApp.state = { ...saveApp.state, ready: true, data: defaultData(), loadError:
 saveApp.scheduleSave();
 assert.equal(saveApp.saveQueue.hasWork(), true);
 assert.equal(await saveApp.flushPendingSave(true), true);
-assert.deepEqual(persisted, ["1.0.0-rc.1"]);
+assert.deepEqual(Array.from(persisted), [defaultData().meta.appVersion]);
 
 // A desktop load error fails closed and renders recovery instead of starter data.
 const app = new RunningTaskApp({});

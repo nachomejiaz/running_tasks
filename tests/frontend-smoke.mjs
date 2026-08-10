@@ -38,7 +38,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), 
 const tauriConfig = JSON.parse(fs.readFileSync(path.join(root, "src-tauri/tauri.conf.json"), "utf8"));
 const capability = JSON.parse(fs.readFileSync(path.join(root, "src-tauri/capabilities/default.json"), "utf8"));
 assert.equal(packageJson.name, "running_task");
-assert.equal(packageJson.version, "1.0.0-rc.1");
+assert.equal(packageJson.version, fs.readFileSync(path.join(root, "VERSION"), "utf8").trim());
 assert.equal(tauriConfig.productName, "Running_Task");
 assert.deepEqual(tauriConfig.bundle.targets, ["nsis"]);
 assert.equal(tauriConfig.bundle.windows.nsis.installMode, "currentUser");

@@ -18,11 +18,11 @@ const assetScript = read("scripts/Build-ReleaseAssets.ps1");
 const noAdminBuild = read("BUILD_WINDOWS_NO_ADMIN.bat");
 const noAdminPublish = read("PUBLISH_TO_GITHUB_NO_ADMIN.bat");
 
-assert.equal(displayVersion, "1.0.0-rc.1");
+assert.match(displayVersion, /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/, `VERSION is not a semantic version: ${displayVersion}`);
 assert.equal(packageJson.version, displayVersion);
 assert.match(source, new RegExp(`APP_VERSION = ["']${displayVersion.replaceAll(".", "\\.")}["']`));
-assert.equal(tauri.version, "1.0.0-rc.1");
-assert.match(cargo, /\nversion = "1\.0\.0-rc\.1"\n/);
+assert.equal(tauri.version, displayVersion);
+assert.ok(cargo.includes(`\nversion = "${displayVersion}"\n`), `Cargo.toml version must match VERSION (${displayVersion}).`);
 assert.match(cargo, /tauri-plugin-single-instance = "2"/);
 
 assert.equal(tauri.bundle.windows.nsis.installMode, "currentUser");
@@ -66,7 +66,7 @@ for (const relative of [
   "docs/GITHUB_UPLOAD_GUIDE.md",
   "docs/NO_ADMIN_INSTALL.md",
   "docs/ROADMAP.md",
-  "docs/RELEASE_NOTES_1.0.0-rc.1.md"
+  `docs/RELEASE_NOTES_${displayVersion}.md`
 ]) {
   assert.ok(fs.existsSync(path.join(root, relative)), `Release documentation missing: ${relative}`);
 }

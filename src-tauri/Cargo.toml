@@ -1,6 +1,6 @@
 [package]
 name = "running_task"
-version = "1.0.0-rc.1"
+version = "1.1.0"
 description = "A private, local personal operations board"
 authors = ["Running_Task"]
 edition = "2021"

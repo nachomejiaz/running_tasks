@@ -90,7 +90,7 @@ assert.equal(summary.checklistItems, data.checklistItems.length);
 
 const imported = prepareImportedWorkspace(JSON.parse(JSON.stringify(data)));
 assert.equal(imported.summary.cards, data.cards.length);
-assert.equal(imported.data.meta.appVersion, "1.0.0-rc.1");
+assert.equal(imported.data.meta.appVersion, data.meta.appVersion);
 assert.deepEqual(Array.from(validateWorkspaceData(imported.data)), []);
 
 const broken = JSON.parse(JSON.stringify(data));

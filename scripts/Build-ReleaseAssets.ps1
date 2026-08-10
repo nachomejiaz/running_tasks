@@ -100,7 +100,7 @@ if (Test-Path -LiteralPath $PreviewSource -PathType Leaf) {
 }
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "START_HERE.txt") -Destination $StartPath -Force
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "docs\LAUNCH_GUIDE.md") -Destination $LaunchPath -Force
-Copy-Item -LiteralPath (Join-Path $ProjectRoot "docs\RELEASE_NOTES_1.0.0-rc.1.md") -Destination $NotesPath -Force
+Copy-Item -LiteralPath (Join-Path $ProjectRoot "docs\RELEASE_NOTES_$Version.md") -Destination $NotesPath -Force
 
 $ReleaseFiles = @($SetupPath, $PortableZip, $CompatibilityZip, $StartPath, $LaunchPath, $NotesPath)
 if (Test-Path -LiteralPath $PreviewPath -PathType Leaf) { $ReleaseFiles += $PreviewPath }

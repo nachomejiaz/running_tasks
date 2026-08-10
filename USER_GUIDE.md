@@ -31,9 +31,13 @@ A Subtopic is a section inside one Topic, such as `RFI`, `PCO`, `Procurement`, `
 To add or edit them:
 
 1. Open **Settings**.
-2. Use the Topics or Subtopics section.
-3. Give the item a name and color.
-4. For a Subtopic, choose its parent Topic.
+2. Use the Topics and Subtopics section.
+3. Select **Add Topic**, or the **+** on a Topic row to add a Subtopic inside it.
+4. Give the item a name and color.
+
+Select the pencil on any row to rename, recolor, or delete it. An item that is
+still referenced by existing tasks cannot be deleted; Running_Task offers to
+hide it instead, and hidden items can be restored from the bottom of Settings.
 
 The default Board uses one column per active Topic and groups cards inside that column by Subtopic.
 
@@ -53,7 +57,7 @@ Changes save automatically after a short delay. The top bar shows `Saving`, `Sav
 
 1. Open a task.
 2. Go to its Checklist section.
-3. Click **Add checklist item**.
+3. Click **Add item**.
 4. Enter the action title.
 5. Add a due date and BIC as needed.
 6. Use indent/outdent controls to create or remove nesting.
@@ -111,7 +115,7 @@ In Status-column mode, `Done` is not shown as an active column. Completing a tas
 
 List view is the dense replacement for the old OneNote running-task page.
 
-It provides sortable, scannable rows with:
+It provides dense, scannable rows ordered by next date, showing:
 
 - Task and reference.
 - Topic and Subtopic.
@@ -119,7 +123,6 @@ It provides sortable, scannable rows with:
 - Next date.
 - Current BIC.
 - Checklist progress.
-- Priority.
 
 Expand a row to work with its checklist without opening the full drawer.
 

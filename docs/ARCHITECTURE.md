@@ -98,6 +98,42 @@ actors     1 -------- * checklist_items.bic_id
 checklist_items 1 ---- * checklist_items.parent_id
 ```
 
+## Schema versioning and migrations
+
+`SCHEMA_VERSION` in `src-tauri/src/lib.rs` is the authority. The backend, not
+the frontend, writes the stored marker, so a stale in-memory copy can never
+downgrade it and re-run a completed upgrade.
+
+On startup, a workspace older than the current version is upgraded:
+
+1. A `Before_Upgrade_*.sqlite` snapshot is taken first.
+2. Every outstanding migration runs in one transaction, in order.
+3. The schema marker is written in that same transaction.
+
+A partially applied upgrade is therefore never committed. A workspace newer
+than the running build still fails closed. To add a migration, append an entry
+to `migrations()` and bump `SCHEMA_VERSION`; published migrations are never
+edited afterwards.
+
+| Schema | Change |
+|---|---|
+| 1 | Initial workspace tables. |
+| 2 | `statuses.waiting`, backfilled from the former hardcoded `status-waiting` identifier. |
+
+## Window close path
+
+Registering a JavaScript `onCloseRequested` listener makes Tauri suppress the
+native close and delegate the decision to the webview. The webview cannot
+complete it through `core:window` commands, because `core:default` grants no
+closing command at all. Running_Task therefore:
+
+1. Always calls `preventDefault()`, so Tauri's own wrapper never attempts a
+   `destroy` the capability would reject.
+2. Flushes any pending save, and stays open if that save fails so the failure
+   and its Retry remain reachable.
+3. Closes through the `close_main_window` application command, falling back to
+   `core:window:allow-destroy`.
+
 ## Validation rules
 
 The backend rejects a save when:

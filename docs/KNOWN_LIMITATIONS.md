@@ -12,11 +12,11 @@
 
 - JSON import replaces the complete workspace after validation and backup; selective Card import is not implemented.
 - CSV and Markdown are export-only snapshots.
-- Schema metadata exists, but migrations beyond schema version 1 are not implemented yet.
+- Schema migrations run automatically behind a pre-upgrade backup. Only forward migration is supported; an older build cannot open a newer workspace.
 - OneNote migration is intentionally omitted.
 - Local backups do not protect against laptop loss or drive failure unless copied to an approved separate location.
 - SQLite restore replaces the complete workspace; selective Card restore is not implemented.
-- One-level undo is in memory and is lost when the application closes.
+- Undo keeps the last 20 workspace changes in memory and is lost when the application closes. A run of typing in one field collapses into a single step.
 - Permanent deletion in Archive is destructive after confirmation.
 - Import safety backup creation must succeed before replacement, but native Windows behavior still requires acceptance testing.
 
@@ -31,6 +31,9 @@
 - Custom field definitions are not implemented.
 - Notifications and Windows reminders are not implemented.
 - Bulk-edit operations are limited.
+- Tags are stored, searched, and exported but have no editor yet.
+- Checklist item notes are stored and exported but have no editor yet.
+- Saved views can be created and applied but not renamed or deleted.
 - Reusable task and checklist templates remain a post-production backlog option and will be prioritized from real usage.
 - Detailed per-Card activity history is not implemented; only created, updated, and completed timestamps are stored.
 

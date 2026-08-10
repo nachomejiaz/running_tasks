@@ -1,7 +1,7 @@
 RUNNING_TASK SELF-CONTAINED PREVIEW
 ===================================
 
-Double-click Running_Task_Preview.html to review version 1.0.0-rc.1 without
+Double-click Running_Task_Preview.html to review version 1.1.0 without
 installing software or starting a local server.
 
 This preview includes representative demo Cards. It supports interface review,

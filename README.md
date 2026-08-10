@@ -2,7 +2,7 @@
 
 Running_Task is a private, local personal operations board for Windows. It combines dense task tracking with Jira-style cards, filters, Board/List/Calendar/Flow views, nested checklists, due dates, and Ball in Court ownership.
 
-Current source stage: **1.0.0-rc.1**.
+Current source stage: **1.1.0**.
 
 ## Install or launch without Administrator rights
 
@@ -90,7 +90,7 @@ Verification covers TypeScript compilation, preview generation, JavaScript synta
 
 ## GitHub publishing
 
-The approved repository is `nachomejiaz/running_tasks`. It is initialized with the 1.0.0-rc.1 build status, release documentation, and Windows workflow. Use the supplied repository package or GitHub synchronization process to publish the complete `1.0.0-rc.1` source tree. After extraction, open the payload folder and upload the **contents inside it** to the repository root—not the outer payload folder itself. A commit to `release/v1.0.0-rc.1` starts the verified Windows artifact workflow; merge to `main` after target-PC acceptance. See the [GitHub upload guide](docs/GITHUB_UPLOAD_GUIDE.md).
+The approved repository is `nachomejiaz/running_tasks`. It is initialized with the 1.1.0 build status, release documentation, and Windows workflow. Use the supplied repository package or GitHub synchronization process to publish the complete `1.1.0` source tree. After extraction, open the payload folder and upload the **contents inside it** to the repository root—not the outer payload folder itself. A commit to `release/v1.1.0` starts the verified Windows artifact workflow; merge to `main` after target-PC acceptance. See the [GitHub upload guide](docs/GITHUB_UPLOAD_GUIDE.md).
 
 The browser upload route requires no local Git installation or Administrator rights. GitHub Desktop and the no-admin `PUBLISH_TO_GITHUB_NO_ADMIN.bat` helper remain alternatives when those tools are already approved. None of the supplied helpers stores a token or force-pushes.
 
@@ -106,4 +106,4 @@ The browser upload route requires no local Git installation or Administrator rig
 - [Data and backups](docs/DATA_AND_BACKUPS.md) — storage, import/export, backup, and recovery.
 - [Acceptance tests](docs/ACCEPTANCE_TESTS.md) — release review checklist.
 - [Known limitations](docs/KNOWN_LIMITATIONS.md) — current release-candidate boundaries.
-- [Release notes](docs/RELEASE_NOTES_1.0.0-rc.1.md) — changes in this build.
+- [Release notes](docs/RELEASE_NOTES_1.1.0.md) — changes in this build.

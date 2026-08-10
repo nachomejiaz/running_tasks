@@ -1,8 +1,8 @@
 RUNNING_TASK SOURCE VALIDATION
 ==============================
-Version: 1.0.0-rc.1
+Version: 1.1.0
 Validation date: July 27, 2026
-Branch: release/v1.0.0-rc.1
+Branch: release/v1.1.0
 
 RESULT
 ------
@@ -28,7 +28,7 @@ PASSED
 11. Current-user NSIS, WebView2-skip, portable package, company-PC check,
     release manifest, checksums, and GitHub Actions configuration.
 12. Application, frontend, Tauri, Cargo, documentation, and packaging version
-    consistency for 1.0.0-rc.1.
+    consistency for 1.1.0.
 13. Single-instance, pre-upgrade backup, schema rejection, and close-guard
     source markers.
 

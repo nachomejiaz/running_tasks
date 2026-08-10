@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$RepositoryUrl = "https://github.com/nachomejiaz/running_tasks.git",
-    [string]$Branch = "release/v1.0.0-rc.1",
+    [string]$Branch = "release/v1.1.0",
     [switch]$SkipToolInstall
 )
 

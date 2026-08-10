@@ -19,8 +19,9 @@ const uploadGuide = read("docs/GITHUB_UPLOAD_GUIDE.md");
 const publishHelper = read("scripts/Publish-ToGitHub.ps1");
 const launchGuide = read("docs/LAUNCH_GUIDE.md");
 
-assert.equal(packageJson.version, "1.0.0-rc.1");
-assert.equal(tauri.version, "1.0.0-rc.1");
+const displayVersion = read("VERSION").trim();
+assert.equal(packageJson.version, displayVersion);
+assert.equal(tauri.version, displayVersion);
 assert.equal(tauri.bundle.windows.nsis.installMode, "currentUser");
 assert.equal(tauri.bundle.windows.webviewInstallMode.type, "skip");
 assert.deepEqual(tauri.bundle.targets, ["nsis"]);
